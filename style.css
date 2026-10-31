@@ -1,0 +1,656 @@
+:root{
+  --night:#05080c; --ink:#e9f4fa; --ink2:#8fa6b6; --muted:#4a6070; --dim:#33434f;
+  --cy:#5ad8ff; --am:#f0b45f; --line:rgba(120,170,200,.16);
+  --h:196;                         /* 本周色相：星球 / 光环 / 环境辉光都取它，paint() 里改 */
+  --mono:ui-monospace,SFMono-Regular,Consolas,monospace;
+  --sans:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif;
+}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{margin:0;background:var(--night);color:var(--ink2);font-family:var(--sans);
+  overflow-x:hidden;-webkit-font-smoothing:antialiased;
+  background-image:radial-gradient(ellipse 70% 55% at 22% 18%,#0b1f2e 0%,transparent 60%),
+    radial-gradient(ellipse 60% 50% at 82% 76%,#161022 0%,transparent 62%)}
+
+/* ============ 星空碎屑 ============ */
+.dust{position:fixed;inset:0;z-index:0;pointer-events:none;overflow:hidden}
+.dust i{position:absolute;border-radius:50%;background:#cfe9f6}
+
+/* 环境辉光：整屏气氛跟着「这一周的星球」走，否则只是一个小球换了色，
+   人根本察觉不到「换了一颗」。做在 fixed 层上，比给 body 换渐变省事。 */
+.aura{position:fixed;inset:0;z-index:0;pointer-events:none;
+  background:
+    radial-gradient(ellipse 50% 44% at 17% 38%,hsl(var(--h) 92% 58% / .14),transparent 70%),
+    radial-gradient(ellipse 44% 40% at 84% 80%,hsl(var(--h) 78% 52% / .085),transparent 74%)}
+
+/* ============ 跃迁遮罩 / 扫光（都在内容之上） ============ */
+.warp{position:fixed;inset:0;z-index:40;pointer-events:none;opacity:0;
+  background:radial-gradient(circle at 50% 44%,#0a1a26 0%,#03060a 68%)}
+.warp.go{animation:warp .92s cubic-bezier(.4,0,.2,1)}
+.warp.go.fast{animation-duration:.62s}
+@keyframes warp{0%{opacity:0}15%{opacity:1}31%{opacity:1}100%{opacity:0}}
+
+.band{position:fixed;inset:-20% -30%;z-index:41;pointer-events:none;opacity:0;
+  background:linear-gradient(104deg,transparent 36%,rgba(90,216,255,.05) 45%,
+    rgba(90,216,255,.42) 50%,rgba(240,180,95,.3) 54%,transparent 64%);
+  transform:translateX(-120%)}
+.band.go{animation:band .92s cubic-bezier(.5,0,.2,1)}
+@keyframes band{0%{opacity:0;transform:translateX(-120%)}
+  14%{opacity:1} 86%{opacity:1} 100%{opacity:0;transform:translateX(120%)}}
+
+/* ============ 外壳 ============ */
+.app{position:relative;max-width:1360px;margin:0 auto;padding:26px 34px;
+  min-height:100%;display:flex;flex-direction:column;gap:18px;
+  justify-content:center}   /* ⚠️ 七栏周历天然只有一点内容，硬撑满会变成七条空长条；
+                               整块居中、格子限高，反而像一块浮着的控制台 */
+
+/* ---------- 顶栏 ---------- */
+.top{display:flex;align-items:center;justify-content:space-between;gap:16px;
+  border-bottom:1px solid var(--line);padding-bottom:14px}
+.top .l{display:flex;align-items:center;gap:9px;font:9.5px/1 var(--mono);
+  letter-spacing:.34em;color:var(--muted)}
+/* 站名兼回门户的入口：不画下划线、不加箭头，鼠标移上去才亮一点。
+   手机上尤其需要一个「往回走」的地方 —— 从门户点进来，浏览器不一定有返回键。 */
+.top .l .brand{display:flex;align-items:center;gap:9px;color:inherit;
+  text-decoration:none;cursor:pointer;transition:color .2s}
+.top .l .brand:hover{color:#cfe2ee}
+.top .l .brand:hover .pulse{box-shadow:0 0 12px hsl(var(--h) 92% 62%)}
+.top .l .pulse{width:5px;height:5px;border-radius:50%;
+  background:hsl(var(--h) 92% 66%);
+  box-shadow:0 0 9px hsl(var(--h) 92% 62%);animation:pulse 2.4s ease-in-out infinite}
+@keyframes pulse{0%,100%{opacity:.35}50%{opacity:1}}
+.top .r{display:flex;align-items:center;gap:10px;font:10px/1 var(--mono);letter-spacing:.14em;
+  color:var(--dim);white-space:nowrap}
+.top .r .wk{color:var(--am);letter-spacing:.2em}
+.top .r .sep{color:#22303b}
+
+/* ---------- 主体 ---------- */
+.hero{display:grid;grid-template-columns:300px 1fr;gap:34px;align-items:center;
+  padding:6px 0 2px}
+.orb{position:relative;width:300px;height:302px;display:grid;place-items:center;flex:0 0 auto}
+
+/* 星球 */
+.planet{position:relative;width:196px;height:196px;border-radius:50%;overflow:hidden;
+  background:
+    radial-gradient(circle at 30% 24%,rgba(255,255,255,.5),transparent 30%),
+    repeating-linear-gradient(12deg,
+      hsl(var(--h) 64% 58% / .94) 0 11px,
+      hsl(var(--h) 54% 44% / .93) 11px 22px,
+      hsl(var(--h) 46% 30% / .92) 22px 33px);
+  box-shadow:0 0 64px hsl(var(--h) 92% 58% / .22),
+    0 0 120px hsl(var(--h) 92% 58% / .1),
+    inset -26px -30px 56px rgba(2,5,9,.95),
+    inset -4px -6px 26px rgba(2,5,9,.7),
+    inset 14px 16px 38px rgba(200,245,255,.16)}
+/* 跃迁遮罩退下去的那一刻，新星球「浮现」一下 —— 否则换周只是数字变了，
+   感觉不到是另一颗星球 */
+.planet.swap{animation:emerge 1.05s cubic-bezier(.2,.7,.3,1)}
+@keyframes emerge{
+  0%{transform:scale(.87);filter:brightness(2.1) saturate(.35)}
+  52%{filter:brightness(1.08) saturate(1)}
+  100%{transform:none;filter:none}}
+.planet .bands{position:absolute;inset:-30%;border-radius:50%;
+  background:repeating-linear-gradient(12deg,
+    transparent 0 13px, rgba(255,255,255,.06) 13px 18px, transparent 18px 31px);
+  animation:drift 52s linear infinite}
+@keyframes drift{to{background-position:420px 0}}
+.planet .shade{position:absolute;inset:0;border-radius:50%;pointer-events:none;
+  background:radial-gradient(circle at 76% 82%,rgba(2,5,9,.96) 0%,rgba(2,5,9,.62) 32%,transparent 64%)}
+.planet .rim{position:absolute;inset:0;border-radius:50%;pointer-events:none;
+  box-shadow:inset 0 0 0 1px hsl(var(--h) 92% 74% / .3),inset 0 0 22px hsl(var(--h) 92% 70% / .18)}
+
+/* 光环：后半在星球后面，前半盖在星球上 */
+.ring{position:absolute;left:50%;top:50%;width:286px;height:74px;
+  margin:-37px 0 0 -143px;border:1.5px solid hsl(var(--h,196) 78% 72% / .45);
+  border-radius:50%;transform:rotate(-17deg);pointer-events:none;
+  box-shadow:0 0 22px hsl(var(--h,196) 90% 62% / .22),0 0 22px hsl(var(--h,196) 90% 62% / .12) inset}
+.ring.back{z-index:0}
+.ring.front{z-index:3;clip-path:inset(51% 0 0 0)}
+.orb > .planet{z-index:2}
+
+/* 火箭按钮 */
+.rocket{position:absolute;z-index:46;   /* 要高过 warp(40)/band(41)，跃迁时火箭才看得见 */left:22px;bottom:42px;width:66px;height:104px;
+  border:0;background:none;padding:0;cursor:pointer;
+  -webkit-tap-highlight-color:transparent;transform-origin:50% 78%;
+  filter:drop-shadow(0 8px 18px rgba(0,0,0,.6))}
+.rocket svg{width:100%;height:100%;display:block;overflow:visible}
+.rocket .pad{position:absolute;left:50%;bottom:-13px;transform:translateX(-50%);
+  width:54px;height:16px;border-radius:50%;
+  border:1px solid rgba(240,180,95,.34);
+  box-shadow:0 0 16px rgba(240,180,95,.22),inset 0 0 12px rgba(240,180,95,.12)}
+.rocket .pad::after{content:"";position:absolute;inset:-9px;border-radius:50%;
+  border:1px solid rgba(240,180,95,.16);animation:pad 3.2s ease-out infinite}
+@keyframes pad{0%{transform:scale(.75);opacity:.8}100%{transform:scale(1.25);opacity:0}}
+.rocket .cap{position:absolute;left:50%;bottom:-27px;transform:translateX(-50%);
+  font:9.5px/1 var(--mono);letter-spacing:.28em;color:#9a7c3f;white-space:nowrap;
+  transition:color .2s}
+.rocket:hover .cap{color:var(--am)}
+.rocket:hover{filter:drop-shadow(0 8px 22px rgba(240,180,95,.3))}
+.rocket .flame{transform-origin:30px 62px;transform:scaleY(.62);opacity:.92;
+  transition:transform .25s,opacity .25s;
+  filter:drop-shadow(0 0 6px rgba(240,180,95,.55))}
+.rocket:hover .flame{transform:scaleY(1);opacity:1}
+
+/* ⚠️ 起飞关键帧里「飞出去 → 隐身归位 → 落回发射台」一气呵成，
+   不要用 forwards 把 opacity:0 定格，否则按钮永久消失、也点不动了。 */
+.rocket.fly{animation:launch 1.06s cubic-bezier(.42,.06,.45,1)}
+.rocket.fly .flame{animation:ignite 1.06s ease-out}
+.rocket.fly-l{animation:launchL 1.06s cubic-bezier(.42,.06,.45,1)}
+.rocket.fly-l .flame{animation:ignite 1.06s ease-out}
+@keyframes launch{
+  0%{transform:translate(0,0) rotate(0deg) scale(1);opacity:1}
+  12%{transform:translate(-4px,6px) rotate(-9deg) scale(.93);opacity:1}
+  56%{transform:translate(21vw,-23vh) rotate(13deg) scale(.82);opacity:1}
+  72%{transform:translate(46vw,-48vh) rotate(26deg) scale(.44);opacity:0}
+  73%{transform:translate(-16px,12px) rotate(-13deg) scale(.7);opacity:0}
+  100%{transform:translate(0,0) rotate(0deg) scale(1);opacity:1}}
+@keyframes launchL{
+  0%{transform:translate(0,0) rotate(0deg) scale(1);opacity:1}
+  12%{transform:translate(4px,6px) rotate(9deg) scale(.93);opacity:1}
+  56%{transform:translate(-21vw,-23vh) rotate(-13deg) scale(.82);opacity:1}
+  72%{transform:translate(-46vw,-48vh) rotate(-26deg) scale(.44);opacity:0}
+  73%{transform:translate(16px,12px) rotate(13deg) scale(.7);opacity:0}
+  100%{transform:translate(0,0) rotate(0deg) scale(1);opacity:1}}
+@keyframes ignite{
+  0%{transform:scaleY(.35);opacity:.45}
+  10%{transform:scaleY(1.5);opacity:1}
+  62%{transform:scaleY(2.2);opacity:1}
+  70%{transform:scaleY(.2);opacity:0}
+  100%{transform:scaleY(.35);opacity:.45}}
+.rocket.shake{animation:shake .42s ease}
+@keyframes shake{0%,100%{transform:translateX(0)}
+  20%{transform:translateX(-4px) rotate(-4deg)}
+  50%{transform:translateX(4px) rotate(4deg)}
+  78%{transform:translateX(-2px) rotate(-2deg)}}
+
+/* ---------- 右侧读数 ---------- */
+.readout{min-width:0}
+.readout .k{font:9.5px/1 var(--mono);letter-spacing:.36em;color:var(--muted);margin:0}
+.readout h1{margin:14px 0 0;font-size:34px;font-weight:200;letter-spacing:.02em;
+  color:#f0f8fc;line-height:1.22}
+.readout h1 b{font-weight:650}
+.readout .lede{margin:12px 0 0;font-size:13.5px;line-height:1.8;color:#7f95a5;max-width:56ch}
+.readout .meta{display:flex;flex-wrap:wrap;gap:22px;margin-top:22px;
+  border-top:1px solid var(--line);padding-top:16px}
+.readout .meta div{display:flex;align-items:baseline;gap:8px}
+.readout .meta b{font:500 17px/1 var(--mono);color:var(--cy);letter-spacing:-.01em}
+.readout .meta span{font:9px/1 var(--mono);letter-spacing:.18em;color:var(--muted)}
+.readout .meta .warn b{color:var(--am)}
+
+/* ---------- 周历 ---------- */
+.grid{display:grid;grid-template-columns:repeat(7,1fr);gap:1px;background:var(--line);
+  border:1px solid var(--line);border-radius:3px;overflow:hidden;
+  flex:0 1 auto;min-height:186px;max-height:292px}
+.col{background:#070c11;padding:11px 12px 13px;min-height:120px;min-width:0;
+  display:flex;flex-direction:column;gap:9px;position:relative}
+.col.we{background:#080e14}
+.col.today{background:#0b141b}
+.col.today::before{content:"";position:absolute;left:0;right:0;top:0;height:2px;
+  background:linear-gradient(90deg,var(--am),rgba(240,180,95,0))}
+.col .hd{display:flex;align-items:baseline;justify-content:space-between;gap:6px}
+.col .dow{font:9px/1 var(--mono);letter-spacing:.22em;color:var(--dim);white-space:nowrap}
+.col.today .dow{color:var(--am)}
+.col .md{font:500 19px/1 var(--mono);color:#d7e8f2;letter-spacing:-.02em}
+.col.today .md{color:var(--am)}
+.col .none{font:11px/1 var(--mono);color:#3c4d5a;letter-spacing:.1em;margin-top:6px}
+
+/* ⚠️ 长内容防线（第一层）：格子里只排「标题」，一律单行省略。
+   标题再长也撑不破列宽；正文根本不下到格子里，只在详情弹层出现。
+   ⚠️ 也不能靠 .evlist 内部滚动：.grid 的 max-height 约束不到 grid 行高，
+      行会被内容撑到 380px、然后被 overflow:hidden 从底下无声裁掉（踩过，量出来
+      scrollHeight === clientHeight，说明根本没滚，是没了）。所以改成限条数 + 展开。 */
+.evlist{display:flex;flex-direction:column;gap:9px;min-width:0}
+.ev{display:block;min-width:0;cursor:pointer}
+.ev .c{display:inline-block;font:8.5px/1 var(--mono);letter-spacing:.14em;
+  color:#7a8fa0;border:1px solid rgba(120,170,200,.2);border-radius:2px;
+  padding:3px 4px;margin-bottom:6px}
+.ev .t{display:block;font-size:12px;line-height:1.5;color:#c9dbe6;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  transition:color .18s}
+.ev:hover .t{color:#f2fbff}
+.ev.future .t{color:#5f7381}
+.ev.future .c{border-style:dashed;color:#4b5d69}
+.evmore{display:block;width:100%;margin-top:1px;padding:8px 0 3px;border:0;
+  border-top:1px dashed rgba(120,170,200,.16);background:none;text-align:left;
+  cursor:pointer;-webkit-tap-highlight-color:transparent;
+  font:9px/1 var(--mono);letter-spacing:.16em;color:#54697a;transition:color .2s}
+.evmore:hover{color:var(--am)}
+
+/* ---------- 航线（E 那种时间轴） ---------- */
+.spine{position:relative;margin-top:6px;padding:22px 0 2px}
+.rail{position:absolute;left:0;right:0;top:24px;height:1px;background:rgba(120,170,200,.16)}
+.rail .done{position:absolute;left:0;top:0;height:1px;
+  background:linear-gradient(90deg,rgba(90,216,255,.55),rgba(240,180,95,.85));
+  transition:width .55s cubic-bezier(.3,.9,.3,1)}
+.rail .head{position:absolute;top:-2px;width:7px;height:7px;border-radius:50%;
+  background:var(--am);box-shadow:0 0 14px rgba(240,180,95,.9);
+  transform:translateX(-3px);transition:left .55s cubic-bezier(.3,.9,.3,1)}
+.stops{display:grid;position:relative;gap:0}
+.st{display:flex;flex-direction:column;align-items:center;gap:9px;border:0;background:none;
+  padding:0;cursor:pointer;-webkit-tap-highlight-color:transparent}
+.st .dot{width:7px;height:7px;border-radius:50%;background:#1d2a34;
+  border:1px solid #2b3b47;transition:.22s;position:relative;z-index:1}
+.st.past .dot{background:#33505f;border-color:#42677a}
+.st.cur .dot{width:11px;height:11px;margin:-2px;background:var(--am);border-color:var(--am);
+  box-shadow:0 0 0 4px rgba(240,180,95,.14),0 0 16px rgba(240,180,95,.7)}
+.st:hover .dot{background:var(--cy);border-color:var(--cy);box-shadow:0 0 12px rgba(90,216,255,.6)}
+.st .lab{display:flex;flex-direction:column;align-items:center;gap:5px;
+  font:9px/1 var(--mono);letter-spacing:.12em;color:#3d4d59;transition:.2s;white-space:nowrap}
+.st .lab b{font-weight:400;letter-spacing:.18em}
+.st.cur .lab{color:var(--am)}
+.st.past .lab{color:#5a6f7d}
+.st:hover .lab{color:#b9d3e0}
+.st.future .lab{color:#2c3a44}
+.top .l .hint{font:9px/1 var(--mono);letter-spacing:.12em;color:#3d4e5b;
+  margin-left:12px;padding-left:14px;border-left:1px solid #1c2730}
+
+/* ---------- 提示 ---------- */
+.toast{position:fixed;left:50%;bottom:34px;z-index:50;transform:translateX(-50%);
+  font:10px/1 var(--mono);letter-spacing:.22em;color:var(--am);
+  border:1px solid rgba(240,180,95,.3);background:rgba(10,16,22,.9);
+  padding:11px 18px;border-radius:3px;opacity:0;pointer-events:none}
+.toast.on{animation:toast 1.8s ease}
+@keyframes toast{0%{opacity:0;transform:translate(-50%,8px)}
+  16%{opacity:1;transform:translate(-50%,0)} 76%{opacity:1} 100%{opacity:0}}
+
+/* ============ 详情弹层 ============ */
+/* ⚠️ 用 visibility 不用 opacity:0↔1 —— 完全透明的合成层 Chrome 会跳过光栅化，
+   切成 1 之后里面的子元素整层不画（背景出来了、字全没了，DOM 查不出来）。
+   淡入交给里面的 .veil 和 .pane 自己做。 */
+.sheet{position:fixed;inset:0;z-index:58;display:grid;place-items:center;
+  padding:24px;visibility:hidden}
+.sheet.on{visibility:visible}
+.sheet .veil{position:absolute;inset:0;background:rgba(2,5,9,.84);
+  -webkit-backdrop-filter:blur(3px);backdrop-filter:blur(3px);
+  opacity:0;transition:opacity .3s}
+.sheet.on .veil{opacity:1}
+.sheet .pane{position:relative;width:min(720px,100%);
+  max-height:min(82vh,780px);display:flex;flex-direction:column;
+  background:#080e14;border:1px solid rgba(120,170,200,.22);border-radius:4px;
+  box-shadow:0 30px 90px rgba(0,0,0,.75),inset 0 1px 0 rgba(160,210,235,.07);
+  opacity:0;transform:translateY(16px) scale(.985);
+  transition:opacity .34s cubic-bezier(.3,.9,.3,1),transform .34s cubic-bezier(.3,.9,.3,1)}
+.sheet.on .pane{opacity:1;transform:none}
+.sheet .sb{display:flex;align-items:center;justify-content:space-between;gap:14px;
+  flex:0 0 auto;padding:13px 18px;border-bottom:1px solid var(--line)}
+.sheet .sb .d{font:9.5px/1 var(--mono);letter-spacing:.2em;color:var(--muted)}
+.sheet .sb .d b{font-weight:400;letter-spacing:.16em;color:var(--am)}
+.sheet .x{flex:0 0 auto;width:26px;height:26px;padding:0;border:1px solid #1e2b35;
+  border-radius:2px;background:none;color:#7e94a4;font:13px/1 var(--mono);
+  cursor:pointer;transition:border-color .2s,color .2s}
+.sheet .x:hover{border-color:rgba(240,180,95,.5);color:var(--am)}
+.sheet .bd{flex:1 1 auto;min-height:0;overflow-y:auto;overscroll-behavior:contain;
+  padding:20px 18px 24px;scrollbar-width:thin;
+  scrollbar-color:rgba(120,170,200,.24) transparent}
+.sheet .bd::-webkit-scrollbar{width:4px}
+.sheet .bd::-webkit-scrollbar-thumb{background:rgba(120,170,200,.24);border-radius:2px}
+.sheet .tag{display:inline-block;margin-bottom:11px;font:8.5px/1 var(--mono);
+  letter-spacing:.14em;color:#8ba2b2;border:1px solid rgba(120,170,200,.24);
+  border-radius:2px;padding:4px 6px}
+.sheet h2{margin:0;font-size:20px;line-height:1.55;font-weight:500;
+  color:#f0f8fc;letter-spacing:.01em;overflow-wrap:anywhere}
+/* 长内容防线（第三层）：正文 pre-wrap 保留换行，anywhere 让长英文/链接换行，
+   绝不出现横向滚动条 */
+.sheet .txt{margin:15px 0 0;font-size:14.5px;line-height:2;color:#a8bfcd;
+  white-space:pre-wrap;overflow-wrap:anywhere;
+  font-variant-numeric:tabular-nums}
+.sheet .txt.empty{color:#465a68}
+.sheet .ph{display:block;margin:17px 0 0;width:100%;height:auto;
+  border:1px solid var(--line);border-radius:3px;background:#050a0e}
+.sheet .foot{margin:20px 0 0;padding-top:13px;border-top:1px solid var(--line);
+  font:9px/1.7 var(--mono);letter-spacing:.14em;color:#3a4a56}
+
+/* 一天好几条时，「+N 展开」打开的就是这个列表 */
+.sheet .dl{display:flex;flex-direction:column;border-top:1px solid var(--line)}
+.sheet .row{display:grid;grid-template-columns:2px minmax(0,1fr);gap:11px;align-items:start;
+  width:100%;padding:14px 2px;border:0;border-bottom:1px solid rgba(120,170,200,.09);
+  background:none;text-align:left;cursor:pointer;
+  -webkit-tap-highlight-color:transparent;transition:background .16s}
+.sheet .row:hover{background:#0b141b}
+.sheet .row i{width:2px;align-self:stretch;border-radius:1px;margin-top:3px;background:#2c4152}
+.sheet .row i.k1{background:rgba(90,216,255,.72)}
+.sheet .row i.k2{background:rgba(240,180,95,.78)}
+.sheet .row i.k3{background:rgba(170,155,255,.75)}
+.sheet .row b{display:block;font-size:14.5px;font-weight:500;line-height:1.6;
+  color:#e6f2f9;overflow-wrap:anywhere}
+.sheet .row em{display:block;margin-top:4px;font-style:normal;font-size:11.5px;
+  line-height:1.6;color:#6b8191;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+/* ============ 窄屏 ============ */
+@media (max-width:1080px){
+  .app{padding:18px 20px 22px}
+  .hero{grid-template-columns:240px 1fr;gap:22px}
+  .orb{width:240px;height:240px}
+  .planet{width:158px;height:158px}
+  .ring{width:230px;height:60px;margin:-30px 0 0 -115px}
+  .rocket{width:48px;height:78px;left:14px;bottom:10px}
+  .readout h1{font-size:26px}
+  .col{min-height:150px;padding:9px 9px 11px}
+  .col .md{font-size:16px}
+  .ev .t{font-size:11px}
+  .spine .hint{display:none}
+}
+@media (max-width:720px){
+  .app{padding:14px 14px 16px;gap:14px}
+  .top{flex-wrap:nowrap;gap:8px}
+  /* ⚠️ 这里必须 flex:0 0 auto。给 .l 加 min-width:0 的话，它会缩到 0 宽，
+     里面的「星历」两个 nowrap 的字就直接糊到右边的 WEEK 读数上（踩过，截图里
+     两串字叠成一片）。让 .l 保持自然宽，把可以牺牲的东西从 .r 里删掉。 */
+  .top .l{flex:0 0 auto;white-space:nowrap}
+  .top .r{flex:1 1 auto;justify-content:flex-end;min-width:0}
+  .top .r{font-size:9px;gap:7px}
+  /* ⚠️ 原来靠 `.top .l .hint{display:none}` 收顶栏；现在 hint 分成 .hint-w / .hint-c 两段，
+     而 `body[data-view="cal"] .top .l .hint-c{display:inline}` 特异性更高，
+     不发 !important 就压不住，顶栏会被撑爆把开关挤出去（踩过）。 */
+  .top .l .hint,.top .r .cntsep,.top .r .cnt,.top .l .en,
+  .top .r #range,.top .r .sep:not(.cntsep),
+  body[data-view="cal"] .top .l .hint-c{display:none!important}
+  body[data-view="cal"] .top .r .calline{display:none!important}
+  .hero{grid-template-columns:1fr;gap:0;justify-items:center;text-align:center}
+  /* 原来 222px 的球区把周历推到了第二屏一半，手机上第一眼看不到「这周有哪几天」 */
+  .orb{width:100%;height:184px}
+  .planet{width:126px;height:126px}
+  .ring{width:192px;height:50px;margin:-25px 0 0 -96px}
+  .rocket{left:calc(50% - 94px);bottom:30px;width:46px;height:72px}
+  .rocket .cap{bottom:-19px;font-size:8px;letter-spacing:.2em}
+  .grid{max-height:none}                    /* 桌面那条 292px 限高会把后三天裁掉 */
+  .readout h1{font-size:23px;margin-top:8px}
+  .readout .lede{font-size:12.5px}
+  .readout .meta{justify-content:center;gap:18px;margin-top:16px;padding-top:14px}
+  /* ⚠️ 单列时 7 栏必须显式改成 1 栏，否则隐式列会把字压成一列一个 */
+  .grid{grid-template-columns:1fr}
+  .col{min-height:0;display:grid;grid-template-columns:62px 1fr;gap:12px;
+    align-items:start;padding:11px 12px}
+  .col .dow{font-size:8.5px;letter-spacing:.14em}
+  .col .hd{flex-direction:column;align-items:flex-start;gap:5px}
+  .col .none{margin-top:2px}
+  /* 手机上一格能宽到 300px，标签和标题可以并排；桌面上列只有 160px，并排会把标题挤成省略号 */
+  .col .ev{display:flex;align-items:baseline;gap:8px}
+  .col .ev .c{margin-bottom:0;flex:0 0 auto}
+  .col .ev .t{flex:1 1 auto;min-width:0}
+  .evlist{overflow:visible;margin-right:0;padding-right:0}
+  .stops{overflow-x:auto;grid-auto-flow:column;grid-auto-columns:56px;
+    justify-content:start;padding-bottom:4px;scrollbar-width:none}
+  .stops::-webkit-scrollbar{display:none}
+  .rail{display:none}
+  .spine{padding-top:16px}
+}
+
+/* ============ 视图切换（顶栏右侧的小开关） ============ */
+.vt{position:relative;display:inline-flex;padding:2px;flex:0 0 auto;
+  border:1px solid #1b2731;border-radius:999px;background:#060a0f}
+.vt .pill{position:absolute;top:2px;left:2px;width:54px;height:22px;border-radius:999px;
+  background:linear-gradient(180deg,rgba(240,180,95,.26),rgba(240,180,95,.08));
+  border:1px solid rgba(240,180,95,.44);
+  box-shadow:0 0 16px rgba(240,180,95,.2),inset 0 1px 0 rgba(255,226,182,.2);
+  transition:transform .36s cubic-bezier(.34,1.14,.4,1)}
+.vt[data-at="1"] .pill{transform:translateX(54px)}
+.vbtn{position:relative;z-index:1;width:54px;height:22px;padding:0;border:0;background:none;
+  cursor:pointer;-webkit-tap-highlight-color:transparent;
+  font:9.5px/1 var(--mono);letter-spacing:.06em;color:#3f5261;transition:color .26s}
+.vbtn:hover{color:#9fb8c7}
+.vbtn.on{color:#f8dcb2}
+
+/* ============ 日历版 ============ */
+body[data-view="week"] .calview{display:none}
+body[data-view="cal"] .hero,
+body[data-view="cal"] .grid,
+body[data-view="cal"] .spine{display:none}
+body[data-view="cal"] .app{justify-content:center}
+.top .r .wkline{display:flex;align-items:center;gap:10px}
+.top .r .calline{display:none;font:9.5px/1 var(--mono);letter-spacing:.16em;color:#3f5261}
+body[data-view="cal"] .top .r .wkline{display:none}
+body[data-view="cal"] .top .r .calline{display:inline}
+.top .l .hint-c{display:none}
+body[data-view="cal"] .top .l .hint-w{display:none}
+body[data-view="cal"] .top .l .hint-c{display:inline}
+
+@keyframes viewin{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}
+.calview{display:flex;flex-direction:column;gap:14px;flex:0 0 auto;
+  animation:viewin .5s cubic-bezier(.3,.9,.3,1)}
+body[data-view="week"] .hero,
+body[data-view="week"] .grid,
+body[data-view="week"] .spine{animation:viewin .5s cubic-bezier(.3,.9,.3,1)}
+
+.calhead{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;
+  border-bottom:1px solid var(--line);padding-bottom:12px}
+.calhead .ml{display:flex;align-items:baseline;gap:12px;min-width:0}
+.calhead .y{font:9.5px/1 var(--mono);letter-spacing:.3em;color:var(--muted)}
+.calhead .mo{font-size:30px;font-weight:200;letter-spacing:.08em;color:#f0f8fc;line-height:1}
+.calhead .mr{display:flex;align-items:center;gap:8px}
+.calhead .meta2{font:9.5px/1 var(--mono);letter-spacing:.14em;color:#3f5261;
+  margin-right:6px;white-space:nowrap}
+.nb{width:28px;height:28px;padding:0;border:1px solid #1e2b35;border-radius:2px;
+  background:#070c11;color:#7e94a4;font:14px/1 var(--mono);cursor:pointer;
+  transition:border-color .2s,color .2s}
+.nb:hover{border-color:rgba(240,180,95,.5);color:var(--am)}
+.nb:disabled,.nb:disabled:hover{border-color:#161f27;color:#27343d;cursor:default}
+.nb.todayb{width:auto;padding:0 10px;font-size:9px;letter-spacing:.18em;color:#5f7484}
+
+.dows{display:grid;grid-template-columns:repeat(7,1fr);gap:1px;
+  font:9px/1 var(--mono);letter-spacing:.24em;color:var(--muted);padding-bottom:2px}
+.dows span{padding-left:10px}
+.dows span.we{color:#2e3d49}
+
+.cells{display:grid;grid-template-columns:repeat(7,1fr);
+  grid-template-rows:repeat(6,minmax(0,1fr));gap:1px;
+  background:var(--line);border:1px solid var(--line);border-radius:3px;
+  overflow:hidden;flex:0 0 auto;height:460px}   /* 具体高度由 JS 按行数算 */
+.cells.turnr{animation:turnr .42s cubic-bezier(.3,.9,.3,1)}
+.cells.turnl{animation:turnl .42s cubic-bezier(.3,.9,.3,1)}
+@keyframes turnr{from{opacity:0;transform:translateX(16px)}to{opacity:1;transform:none}}
+@keyframes turnl{from{opacity:0;transform:translateX(-16px)}to{opacity:1;transform:none}}
+
+.cell{position:relative;background:#070c11;padding:8px 9px 9px;min-height:0;overflow:hidden;
+  display:flex;flex-direction:column;gap:6px;transition:background .18s}
+.cell.out{background:#050a0e}
+.cell.we{background:#080e14}
+.cell.out.we{background:#060b10}
+.cell.has{cursor:pointer}
+.cell.has:hover{background:#0c1720}
+/* 今天只靠「顶部一道线 + 实心琥珀圆盘」两处标记。原来还加了一圈 inset 描边，
+   整格像被「选中」，和圆盘抢戏，去掉了。 */
+.cell.today{background:#0d161e}
+.cell.today::before{content:"";position:absolute;left:0;right:0;top:0;height:2px;
+  background:linear-gradient(90deg,var(--am),rgba(240,180,95,0))}
+
+.cell .ch{display:flex;align-items:center;justify-content:space-between;gap:6px}
+.cell .dn{font:500 16px/1 var(--mono);color:#93abbb;letter-spacing:-.02em}
+.cell.out .dn{color:#2a3944}
+.cell.today .dn{display:grid;place-items:center;width:23px;height:23px;margin:-4px 0 -4px -1px;
+  border-radius:50%;background:var(--am);color:#140d04;font-size:12.5px;font-weight:600;
+  box-shadow:0 0 14px rgba(240,180,95,.4)}
+.cell .dots{display:none;gap:3px}
+.cell .dots i{width:4px;height:4px;border-radius:50%;background:#3f5261;display:block}
+.cell .cl{display:flex;flex-direction:column;gap:5px;min-height:0;overflow:hidden}
+.ci{display:flex;gap:6px;font-size:11px;line-height:1.42;color:#b6cbd8;min-height:0;min-width:0}
+.ci::before{content:"";flex:0 0 2px;width:2px;border-radius:1px;margin-top:2px;
+  align-self:stretch;background:#2c4152}
+/* 长内容防线（第二层）：日历格只有 92px 高，标题排两行就会把格子顶穿，
+   所以这里也一律单行省略，完整标题留给点开后的详情。 */
+.ci span{display:block;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ci.future{color:#5d7382}
+.ci.future::before{opacity:.45}
+.ci.k1::before{background:rgba(90,216,255,.72)}
+.ci.k2::before{background:rgba(240,180,95,.78)}
+.ci.k3::before{background:rgba(170,155,255,.75)}
+.cell .cm{font:8.5px/1 var(--mono);letter-spacing:.12em;color:#3d4e5b}
+
+.callist{display:none;flex-direction:column;margin-top:2px;border-top:1px solid var(--line)}
+.li{display:grid;grid-template-columns:50px 1fr;gap:10px;align-items:start;width:100%;
+  border:0;border-bottom:1px solid rgba(120,170,200,.08);background:none;text-align:left;
+  padding:10px 2px;cursor:pointer;-webkit-tap-highlight-color:transparent}
+.li:active{background:#0b141b}
+.li .ld{font:9.5px/1.7 var(--mono);letter-spacing:.1em;color:#6b8191}
+.li .lt{display:flex;gap:7px;font-size:12px;line-height:1.55;color:#b6cbd8}
+.li .lt i{flex:0 0 2px;width:2px;border-radius:1px;margin-top:5px;background:#2c4152}
+.li .lt i.k1{background:rgba(90,216,255,.72)}
+.li .lt i.k2{background:rgba(240,180,95,.78)}
+.li .lt i.k3{background:rgba(170,155,255,.75)}
+
+.calfoot{margin:0;font:9px/1 var(--mono);letter-spacing:.16em;color:#3f5261;text-align:right}
+
+/* ---- 1080 ---- */
+@media (max-width:1080px){
+  .calhead .mo{font-size:26px}
+  .cells{min-height:340px}
+  .ci{font-size:10px}
+}
+/* ---- 手机 ---- */
+@media (max-width:720px){
+  .vt .pill{width:48px;height:21px}
+  .vt[data-at="1"] .pill{transform:translateX(48px)}
+  .vbtn{width:48px;height:21px;font-size:9px;letter-spacing:.02em}
+  .calview{flex:0 0 auto;gap:10px}
+  .calhead{gap:10px;padding-bottom:10px;align-items:center}
+  .calhead .ml{gap:8px}
+  .calhead .y{font-size:8.5px;letter-spacing:.2em}
+  .calhead .mo{font-size:22px}
+  .calhead .meta2{display:none}
+  .nb{width:26px;height:26px}
+  .nb.todayb{padding:0 8px;font-size:8.5px}
+  .dows{letter-spacing:.08em}
+  .dows span{padding-left:0;text-align:center}
+  /* JS 会写内联 height / grid-template-rows，手机上必须 !important 才压得住 */
+  .cells{height:auto!important;grid-template-rows:none!important;
+    grid-auto-rows:56px;min-height:0}
+  .cell .dots i{width:5px;height:5px}
+  .cell.out .dots{opacity:.4}              /* 上/下月那几格只是提示「那天有记录」 */
+  .cell .dots i.k1{background:#5ad8ff}
+  .cell .dots i.k2{background:#f0b45f}
+  .cell .dots i.k3{background:#a99bff}
+  .cell.today .dn{width:20px;height:20px;font-size:11px}
+  .cell .dots{gap:4px;margin-top:2px}
+  .cell{padding:5px 4px;gap:0;justify-content:center;align-items:center}
+  .cell .ch{flex-direction:column;align-items:center;gap:3px}
+  .cell .dn{font-size:11px}
+  .cell .cl{display:none}
+  .cell .dots{display:flex}
+  .callist{display:flex}
+  .calfoot{text-align:left;font-size:8.5px;letter-spacing:.1em}
+
+  /* 详情：手机上从底部升上来，别做成居中的小窗（可读性差、也不好滚） */
+  .sheet{padding:0;place-items:end stretch}
+  .sheet .pane{width:100%;max-height:88vh;border-radius:6px 6px 0 0;
+    border-bottom:0;transform:translateY(34px)}
+  .sheet.on .pane{transform:none}
+  .sheet .bd{padding:18px 16px calc(26px + env(safe-area-inset-bottom))}
+  .sheet h2{font-size:18px}
+  .sheet .txt{font-size:13px;line-height:1.9}
+}
+
+/* ============================================================
+   以下是为「正式站点」补的部分：提示条、编辑条、表单弹层、钥匙弹层
+   上面的样式一行没动，全部是原型的成品。
+   ============================================================ */
+
+/* ⚠️ 这条必须留：作者写的 display 会盖掉浏览器对 [hidden] 的默认 display:none，
+   之前就是这个坑 —— 元素明明加了 hidden，页面上照样显示。 */
+[hidden]{display:none!important}
+
+/* ---------- 顶部提示条（示例数据 / 表还没建 / 加载失败） ---------- */
+.notice{display:flex;align-items:center;gap:9px;width:100%;
+  padding:8px 12px;border:1px solid rgba(240,180,95,.26);
+  background:rgba(240,180,95,.055);border-radius:3px;
+  font:10px/1.6 var(--mono);letter-spacing:.1em;color:#c9a877}
+.notice b{font-weight:400;color:var(--am);letter-spacing:.16em}
+.notice.warn{border-color:rgba(240,140,120,.3);background:rgba(240,120,100,.06);color:#d8a89c}
+.notice.warn b{color:#f09a86}
+.notice[hidden]{display:none!important}
+.notice .nx{margin-left:auto;flex:0 0 auto;padding:2px 7px;border:1px solid rgba(240,180,95,.3);
+  border-radius:2px;background:none;color:inherit;cursor:pointer;
+  font:9px/1.6 var(--mono);letter-spacing:.14em}
+.notice .nx:hover{border-color:var(--am);color:var(--am)}
+
+/* ---------- 编辑条：只有管理员登录后才出现 ---------- */
+.edbar{display:flex;align-items:center;gap:14px;width:100%;flex:0 0 auto;
+  padding:7px 12px;border-left:2px solid var(--am);
+  background:linear-gradient(90deg,rgba(240,180,95,.09),rgba(240,180,95,.015));
+  font:9.5px/1 var(--mono);letter-spacing:.16em;color:#c9a877}
+.edbar[hidden]{display:none!important}
+.edbar .who{color:var(--am)}
+.edbar .sp{flex:1 1 auto;min-width:0;color:#7b6a52;white-space:nowrap;
+  overflow:hidden;text-overflow:ellipsis}
+.edbar button{flex:0 0 auto;padding:5px 10px;border:1px solid rgba(240,180,95,.34);
+  border-radius:2px;background:none;color:#d7b98c;cursor:pointer;
+  font:9.5px/1 var(--mono);letter-spacing:.14em;transition:all .18s}
+.edbar button:hover{border-color:var(--am);color:var(--am);background:rgba(240,180,95,.08)}
+.edbar button.solid{background:rgba(240,180,95,.14);border-color:rgba(240,180,95,.5);color:#f5c98a}
+.edbar button.solid:hover{background:rgba(240,180,95,.22)}
+
+/* 顶栏最右那个「连点三下」的小门 —— 看上去只是排版里的一个点。
+   4px 的按钮本身没法点，用 ::before 把热区撑到 22px，视觉上不变。 */
+.dotgate{position:relative;width:4px;height:4px;padding:0;margin-left:2px;border:0;border-radius:50%;
+  background:#243542;cursor:default;flex:0 0 auto;
+  -webkit-tap-highlight-color:transparent;transition:background .2s}
+.dotgate::before{content:"";position:absolute;inset:-9px;border-radius:50%}
+.dotgate:hover{background:#33506a}
+
+/* ---------- 表单弹层 ---------- */
+.sheet.editor .pane{width:min(560px,100%)}
+.fm{display:flex;flex-direction:column;gap:15px;padding:2px 0 4px}
+.f-lab{display:flex;align-items:baseline;justify-content:space-between;gap:10px;
+  margin-bottom:7px;font:9px/1 var(--mono);letter-spacing:.2em;color:#6d8598}
+.f-lab .n{letter-spacing:.1em;color:#4d6478;font-variant-numeric:tabular-nums}
+.f-lab .n.full{color:var(--am)}
+.f-in{display:block;width:100%;padding:10px 11px;border:1px solid #1b2833;border-radius:3px;
+  background:#070c11;color:#dbeaf4;font:13px/1.6 var(--sans);
+  outline:none;transition:border-color .18s,box-shadow .18s;
+  -webkit-appearance:none;appearance:none}
+.f-in::placeholder{color:#31434f}
+.f-in:focus{border-color:rgba(240,180,95,.5);box-shadow:0 0 0 3px rgba(240,180,95,.07)}
+textarea.f-in{min-height:132px;resize:vertical;line-height:1.95;font-size:13px}
+.f-in[type="date"]{font-family:var(--mono);letter-spacing:.06em;color-scheme:dark}
+.f-hint{margin:6px 0 0;font:9px/1.6 var(--mono);letter-spacing:.08em;color:#4e6472}
+
+.seg{display:flex;gap:6px}
+.seg button{flex:1 1 0;padding:8px 0;border:1px solid #1b2833;border-radius:3px;
+  background:#070c11;color:#7d92a2;cursor:pointer;
+  font:10px/1 var(--mono);letter-spacing:.16em;transition:all .16s}
+.seg button:hover{border-color:#2b4256;color:#a9c1d1}
+/* 选中态用「薄底 + 亮边 + 亮字」，不用实心块 —— 一整块高饱和青会把整个
+   弹层的重心拽到这三个按钮上，其他字段全成了灰的。 */
+.seg button.on{font-weight:700}
+.seg button[data-c="班级"].on{background:rgba(90,216,255,.14);border-color:rgba(90,216,255,.62);color:#8fe6ff}
+.seg button[data-c="活动"].on{background:rgba(240,180,95,.14);border-color:rgba(240,180,95,.62);color:#f5c98a}
+.seg button[data-c="学习"].on{background:rgba(170,155,255,.14);border-color:rgba(170,155,255,.62);color:#c2b8ff}
+
+.acts{display:flex;align-items:center;gap:9px;margin-top:4px;padding-top:14px;
+  border-top:1px solid var(--line)}
+.acts .sp{flex:1 1 auto}
+.btn{padding:9px 16px;border:1px solid #22323f;border-radius:3px;background:none;
+  color:#93a9b8;cursor:pointer;font:10px/1 var(--mono);letter-spacing:.16em;
+  transition:all .18s}
+.btn:hover{border-color:#33526a;color:#cfe2ee}
+.btn.primary{background:rgba(90,216,255,.12);border-color:rgba(90,216,255,.42);color:#8fe6ff}
+.btn.primary:hover{background:rgba(90,216,255,.2);border-color:var(--cy)}
+.btn.primary[disabled]{opacity:.45;cursor:default}
+.btn.danger{border-color:rgba(230,110,100,.28);color:#c98a82}
+.btn.danger:hover{border-color:#e66e64;color:#ff9a90;background:rgba(230,110,100,.08)}
+
+/* 详情弹层底部的「改 / 删」 */
+.sheet .footacts{display:flex;gap:8px;margin:18px 0 0;padding-top:13px;
+  border-top:1px solid var(--line)}
+.sheet .footacts .sp{flex:1 1 auto}
+
+/* 钥匙弹层 */
+.sheet.gate .pane{width:min(400px,100%)}
+.sheet .gl{font:9px/1.7 var(--mono);letter-spacing:.16em;color:#4e6472;margin:14px 0 0}
+.sheet .gl code{color:#7d93a2;letter-spacing:.06em}
+
+/* 保存中转圈 */
+.spin{display:inline-block;width:9px;height:9px;margin-right:6px;vertical-align:-1px;
+  border:1px solid rgba(90,216,255,.3);border-top-color:var(--cy);border-radius:50%;
+  animation:spin .7s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* ---------- 手机：表单与编辑条 ---------- */
+@media (max-width:720px){
+  .edbar{gap:8px;padding:6px 9px;font-size:8.5px;letter-spacing:.1em}
+  .edbar .sp{display:none!important}
+  .edbar button{padding:5px 8px;font-size:8.5px}
+  .sheet.editor .pane{width:100%}
+  textarea.f-in{min-height:110px}
+  .dotgate{width:5px;height:5px}
+}

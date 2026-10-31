@@ -324,7 +324,11 @@
 
     /* 航线 */
     stopEls.forEach(function (el, i) {
-      el.className = 'st' + (i === CUR ? ' cur' : (i < CUR ? ' past' : 'future'));
+      /* ⚠️ 三个分支都必须带前导空格。写成 'future'（少一个空格）会拼出
+         class="stfuture"，整个 .st 规则全部失效 —— 按钮退回浏览器默认样式，
+         底部航线未来那一段会变成一排白底方块。只在「当前周之后还有周」时才露头，
+         数据没跨到今天时完全看不出来（2026-10-31 导入 8 月起的数据才踩到）。 */
+      el.className = 'st' + (i === CUR ? ' cur' : (i < CUR ? ' past' : ' future'));
     });
     var pct = N > 1 ? (CUR / (N - 1)) * 100 : 0;
     $('done').style.width = pct + '%';

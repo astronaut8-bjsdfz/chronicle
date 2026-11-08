@@ -661,6 +661,18 @@
   });
 
   addEventListener('keydown', function (e) {
+    /* 卷首 / 序言：Enter、空格、→ 往前走一步，← 和 Esc 退一步。
+       ⚠️ 这一段必须放在最前面：否则在卷首按 → 会把底下的周历偷偷翻一周。 */
+    if (STAGE !== 'main') {
+      if (e.key === 'Enter' || e.key === ' ' || e.key === 'Spacebar' || e.key === 'ArrowRight') {
+        e.preventDefault();
+        if (STAGE === 'cover') toPreface(); else toMain();
+      } else if (e.key === 'ArrowLeft' || e.key === 'Escape') {
+        e.preventDefault();
+        if (STAGE === 'preface') toCover();
+      }
+      return;
+    }
     if (e.key === 'Escape') {
       if (editor.classList.contains('on')) { closeEditor(); return; }
       if (gate.classList.contains('on')) { closeSheetEl(gate); return; }
@@ -1016,6 +1028,97 @@
     }).then(finish);
   }
 
+  /* ================= 16.5 卷首 → 序言 → 正文 ================= */
+
+  /* 每次进来都从头看一遍（用户 2026-11-08 定的），不做「已读跳过」。
+     三段都在同一个页面里，只切 body[data-stage]，不跳转、不改地址栏。 */
+  var STAGE = 'cover';
+  var stageBusy = false;
+  var coverEl = $('cover'), appEl = $('app');
+
+  function fillPreface() {
+    var P = window.CHRONICLE_PREFACE || {};
+    $('ptitle').textContent = P.title || '序言';
+    $('pEn').textContent = [P.en, P.zh].filter(Boolean).join(' · ') || 'PREFACE';
+    var h = '';
+    if (P.lead) h += '<p class="lead">' + esc(P.lead) + '</p>';
+    (P.paras || []).forEach(function (t) { if (t) h += '<p>' + esc(t) + '</p>'; });
+    /* preface.js 没加载 / 写空了也不能开天窗，给一句告诉他去改哪儿 */
+    if (!h) h = '<p class="lead">这一页还空着。</p>'
+      + '<p>把想说的话写进 preface.js，刷新就会出现在这里。</p>';
+    $('ptext').innerHTML = h;
+    $('psign').textContent = P.sign ? '—— ' + P.sign : '';
+    $('pdate').textContent = P.date || '';
+  }
+
+  function setStage(s) {
+    STAGE = s;
+    document.body.dataset.stage = s;
+    if (s === 'main') {
+      /* 从序言过来淡一下；先摘掉 class 逼动画重播 */
+      appEl.classList.remove('enter');
+      void appEl.offsetWidth;
+      appEl.classList.add('enter');
+      setTimeout(function () { appEl.classList.remove('enter'); }, 700);
+    }
+    window.scrollTo(0, 0);
+  }
+
+  function focusQuiet(el) {
+    try { el.focus({ preventScroll: true }); } catch (e) { }
+  }
+
+  function toPreface() {
+    if (STAGE !== 'cover' || stageBusy) return;
+    stageBusy = true;
+    coverEl.classList.add('lift');          /* 金环放大成门，标题被吸进去 */
+    /* 遮罩晚 0.22s 再盖：先让人看见金环涨上来那一下，否则一黑什么都看不到 */
+    setTimeout(function () {
+      warp(false);
+      replay($('band'), 'go', 980);
+    }, 220);
+    setTimeout(function () {
+      setStage('preface');
+      stageBusy = false;          /* ⚠️ 一换屏就解锁：解锁放在 1s 后的话，
+                                     手快的人连点两下，第二下会被吃掉 */
+      focusQuiet($('goNext'));
+    }, 560);
+    setTimeout(function () { coverEl.classList.remove('lift'); }, 1150);
+  }
+
+  function toMain() {
+    if (STAGE !== 'preface' || stageBusy) return;
+    stageBusy = true;
+    warp(true);
+    replay($('band'), 'go', 980);
+    setTimeout(function () { setStage('main'); stageBusy = false; }, 260);
+  }
+
+  function toCover() {
+    if (STAGE === 'cover' || stageBusy) return;
+    stageBusy = true;
+    warp(true);
+    replay($('band'), 'go', 980);
+    /* ⚠️ 先摘掉 lift：留着它，回来时金环是放大的残影，标题永远出不来 */
+    coverEl.classList.remove('lift');
+    setTimeout(function () {
+      setStage('cover');
+      stageBusy = false;
+      focusQuiet($('goNext'));
+    }, 240);
+  }
+
+  /* 卷首那个固定在右下角，序言那个跟在正文末尾，两个走同一套逻辑 */
+  [$('goNext'), $('goNext2')].forEach(function (b) {
+    b.addEventListener('click', function () {
+      if (STAGE === 'cover') toPreface();
+      else if (STAGE === 'preface') toMain();
+    });
+  });
+  $('toCover').addEventListener('click', toCover);
+
+  fillPreface();
+
   /* ================= 17. 启动 ================= */
 
   setView('week', true);
@@ -1026,6 +1129,13 @@
   window.__view = function (v) { setView(v); };
   window.__month = function (i) { MI = i; paintCal(); };
   window.__ev = function (i) { openEv(i); };
+  window.__stage = function (s) {
+    if (s === 'cover') toCover();
+    else if (s === 'preface') setStage('preface');
+    else if (s === 'main') setStage('main');
+    return STAGE;
+  };
+  window.__stageNow = function () { return STAGE; };
   window.__shut = closeSheet;
   window.__new = function () { openEditor(-1); };
   window.__edit = function (i) { openEditor(i); };

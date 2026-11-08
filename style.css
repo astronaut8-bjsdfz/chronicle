@@ -654,3 +654,340 @@ textarea.f-in{min-height:132px;resize:vertical;line-height:1.95;font-size:13px}
   textarea.f-in{min-height:110px}
   .dotgate{width:5px;height:5px}
 }
+
+/* ============================================================
+   卷首 / 序言
+   ------------------------------------------------------------
+   三段式：卷首 → 序言 → 正文，靠 body[data-stage] 切 display。
+   ⚠️ 只切 display，不用 opacity 藏整屏（全透明的合成层 Chrome 会跳过
+      光栅化，再切成可见时里面的子元素整层不画）。
+   ⚠️ 动画全部挂在元素本身：display 从 none 变回 flex 时浏览器会重播，
+      所以「从正文回卷首」不用 JS 手动重启动画。
+   ============================================================ */
+.cover, .preface { display: none; }
+body[data-stage="cover"] .cover { display: flex; }
+body[data-stage="preface"] .preface { display: flex; }
+body[data-stage="cover"] .app,
+body[data-stage="preface"] .app { display: none; }
+body[data-stage="main"] .goBtn { display: none; }
+/* 序言用自己的末尾箭头，固定那个让位，免得一屏两个箭头 */
+body[data-stage="preface"] #goNext { display: none; }
+
+/* ---------- 卷首 ---------- */
+.cover {
+  position: relative;
+  min-height: 100vh;
+  min-height: 100dvh;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 44px 24px 80px;
+}
+
+/* 启动读数：只活一秒半，然后彻底淡出，剩下的只有标题 */
+.boot {
+  position: absolute;
+  top: clamp(20px, 4vh, 38px);
+  left: clamp(18px, 3vw, 44px);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font: 9.5px/1.8 var(--mono);
+  letter-spacing: .18em;
+  color: #445a69;
+  pointer-events: none;
+  animation: bootOut .55s ease 1.95s forwards;
+}
+.boot span { opacity: 0; animation: bootIn .3s ease forwards; }
+.boot span:nth-child(1) { animation-delay: .04s; }
+.boot span:nth-child(2) { animation-delay: .26s; }
+.boot span:nth-child(3) { animation-delay: .5s; }
+.boot b { color: var(--am); font-weight: 400; }
+.boot i { color: var(--cy); font-style: normal; letter-spacing: .1em; }
+@keyframes bootIn { to { opacity: .9; } }
+@keyframes bootOut { to { opacity: 0; visibility: hidden; } }
+
+/* 标题：金色，从模糊里显影。金环转得极慢，40 秒一圈，正常看不出来在动 */
+.seal {
+  position: relative;
+  width: clamp(266px, 34vw, 372px);
+  aspect-ratio: 1 / 1;
+  display: grid;
+  place-items: center;
+}
+.seal .r { position: absolute; border-radius: 50%; pointer-events: none; }
+.seal .r1 { inset: 0; border: 1px solid rgba(240, 180, 95, .22); }
+.seal .r2 {
+  inset: 0;
+  border: 1px solid transparent;
+  border-top-color: rgba(240, 180, 95, .55);
+  border-right-color: rgba(240, 180, 95, .14);
+  animation: spin 40s linear infinite;
+}
+.seal .r3 {
+  inset: -17px;
+  border: 1px dashed rgba(240, 180, 95, .1);
+  animation: spin 110s linear infinite reverse;
+}
+
+.ct {
+  /* 兜底：不支持 background-clip 时就是一整块金色，不是隐形 */
+  color: #f0c674;
+  margin: 0;
+  font-size: clamp(27px, 4vw, 44px);
+  font-weight: 500;
+  line-height: 1;
+  letter-spacing: .14em;
+  padding-left: .14em;          /* 抵消 letter-spacing 在末尾多出的那一格，视觉才居中 */
+  animation: reveal 1.25s cubic-bezier(.22, .7, .2, 1) .58s backwards;
+}
+@supports ((-webkit-background-clip: text) or (background-clip: text)) {
+  .ct {
+    background: linear-gradient(178deg, #fff4da 4%, #f2c877 44%, #cf9433 96%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    color: transparent;
+  }
+}
+@keyframes reveal {
+  from { opacity: 0; filter: blur(14px); transform: scale(1.03); letter-spacing: .3em; }
+  to   { opacity: 1; filter: blur(0);   transform: scale(1);    letter-spacing: .14em; }
+}
+
+.csub {
+  margin: 30px 0 0;
+  font: 10.5px/1 var(--mono);
+  letter-spacing: .34em;
+  color: #8fa6b6;
+  animation: fadeUp .9s ease 1.05s backwards;
+}
+.cen {
+  margin: 13px 0 0;
+  font: 8.5px/1 var(--mono);
+  letter-spacing: .44em;
+  color: #4a5f70;
+  animation: fadeUp .9s ease 1.2s backwards;
+}
+@keyframes fadeUp { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+
+.cnum {
+  position: absolute;
+  left: clamp(18px, 3vw, 44px);
+  bottom: clamp(20px, 4vh, 38px);
+  font: 9px/1 var(--mono);
+  letter-spacing: .24em;
+  color: #2f404c;
+}
+
+/* 点下去：金环放大成一道门，标题被吸进去 */
+.cover.lift .seal { animation: sealLift .8s cubic-bezier(.4, 0, .45, 1) forwards; }
+.cover.lift .csub,
+.cover.lift .cen,
+.cover.lift .cnum { opacity: 0; transition: opacity .28s; }
+@keyframes sealLift {
+  to { transform: scale(10); opacity: 0; filter: blur(4px); }
+}
+
+/* ---------- 序言 ---------- */
+.preface {
+  position: relative;
+  min-height: 100vh;
+  min-height: 100dvh;
+  flex-direction: column;
+  justify-content: center;
+  padding: clamp(72px, 12vh, 120px) 24px clamp(96px, 14vh, 140px);
+  background: radial-gradient(ellipse 52% 42% at 16% 8%, rgba(240, 180, 95, .055), transparent 72%);
+}
+.pwrap { width: min(660px, 100%); margin: 0 auto; position: relative; padding-left: 26px; }
+.pwrap::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 4px;
+  bottom: 32px;
+  width: 1px;
+  background: rgba(240, 180, 95, .34);
+}
+/* 序言题头：大标题 ＋ 一条细横线 ＋ 英文标签／页码。
+   宽度跟正文列一样，左边缘正好压在下面那道竖线的 x 上，读起来像一章的开头 */
+.ptop {
+  width: min(660px, 100%);
+  margin: 0 auto clamp(22px, 3.4vh, 34px);
+}
+
+.ptitle {
+  /* 兜底：不支持 background-clip 时就是一整块金色，不会隐形 */
+  color: #f0c674;
+  margin: 0;
+  font-size: clamp(31px, 4.2vw, 47px);
+  font-weight: 500;
+  line-height: 1;
+  letter-spacing: .2em;
+  animation: titleBlur 1.05s cubic-bezier(.22, .7, .2, 1) .08s backwards;
+}
+/* ⚠️ 别加 transform: scale()：标题比正文列宽，动画中放大那 2.5% 会让
+   document.scrollWidth 在 390 上变成 393，出现「横向溢出」的假红。
+   只做模糊→清晰，几何完全不动的才稳。 */
+@keyframes titleBlur {
+  from { filter: blur(10px); }
+  to   { filter: blur(0); }
+}
+@supports ((-webkit-background-clip: text) or (background-clip: text)) {
+  .ptitle {
+    background: linear-gradient(176deg, #fff2d8 6%, #eec075 50%, #c98d2e 98%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    color: transparent;
+  }
+}
+
+.pmeta {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-top: clamp(15px, 2.2vh, 21px);
+  padding-top: 11px;
+  border-top: 1px solid rgba(240, 180, 95, .17);
+  font: 9.5px/1 var(--mono);
+  letter-spacing: .3em;
+  color: #5f7688;
+}
+.ptext p {
+  margin: 0 0 1.15em;
+  font-size: 15.5px;
+  line-height: 2;
+  letter-spacing: .02em;
+  color: #a9bfcd;
+  text-align: justify;
+}
+.ptext .lead {
+  margin-bottom: 1.2em;
+  font-size: 17px;
+  line-height: 1.95;
+  color: #e8f2f8;
+}
+.pfoot {
+  display: flex;
+  justify-content: flex-end;
+  align-items: baseline;
+  gap: 14px;
+  margin-top: 28px;
+  font: 10px/1 var(--mono);
+  letter-spacing: .16em;
+  color: #5b7385;
+}
+.pfoot .psign { color: #c9a05a; }
+/* 换屏在点下后 0.56s，所以这里的时间要短一档：
+   从点到字完全清楚约 1.25s，再长就显得慢 */
+.preface .ptop { animation: pfIn .65s ease .04s backwards; }
+.preface .pwrap { animation: pfIn .62s ease .12s backwards; }
+@keyframes pfIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+
+/* ---------- 那个箭头 ---------- */
+.goBtn {
+  position: fixed;
+  right: clamp(18px, 4vw, 46px);
+  bottom: clamp(20px, 5vh, 44px);
+  z-index: 30;
+  width: 52px;
+  height: 52px;
+  display: grid;
+  place-items: center;
+  border: 1px solid rgba(240, 180, 95, .45);
+  border-radius: 50%;
+  background: rgba(240, 180, 95, .05);
+  color: #f0c674;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: background .22s, border-color .22s, transform .22s;
+}
+.goBtn svg { width: 22px; height: 22px; }
+.goBtn path {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.goBtn::after {
+  content: "";
+  position: absolute;
+  inset: -7px;
+  border-radius: 50%;
+  border: 1px solid rgba(240, 180, 95, .2);
+  animation: breath 3.6s ease-in-out infinite;
+}
+@keyframes breath {
+  0%, 100% { transform: scale(1); opacity: .55; }
+  50%      { transform: scale(1.18); opacity: 0; }
+}
+.goBtn:hover { background: rgba(240, 180, 95, .13); border-color: rgba(240, 180, 95, .85); }
+.goBtn:active { transform: scale(.94); }
+
+/* 序言末尾那个：跟着文字走，不固定 */
+.pgo { display: flex; align-items: center; margin-top: 24px; }
+.pgo .pline { flex: 1 1 auto; height: 1px; margin-right: 14px; background: rgba(240, 180, 95, .16); }
+/* ⚠️ 不能用 static：::after 那圈呼吸光环是 inset:-7px 的绝对定位，
+   父级不是定位元素时它会挂到 .pwrap 上，变成套住整段文字的巨圈，
+   而且缩放时把 scrollWidth 撑到 410。relative 既留在流里又是包含块 */
+/* relative 会把 .goBtn 上面的 right/bottom 当成相对偏移，
+   于是箭头被推左 18px、上移 44px（看着像压在落款上）→ 必须清掉 */
+.goBtn.goIn { position: relative; right: auto; bottom: auto; flex: none; width: 46px; height: 46px; }
+
+/* ---------- 正文顶栏的「卷首」 ---------- */
+.top .l .toCover {
+  flex: none;
+  margin-left: 2px;
+  padding: 4px 7px;
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  background: none;
+  color: var(--muted);
+  font: 9px/1 var(--mono);
+  letter-spacing: .18em;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: color .2s, border-color .2s;
+}
+.top .l .toCover:hover { color: #cfe2ee; border-color: rgba(120, 170, 200, .42); }
+
+/* 正文进场淡一下，从序言过来不至于「啪」地换掉 */
+.app.enter { animation: appIn .55s ease; }
+@keyframes appIn { from { opacity: 0; } to { opacity: 1; } }
+
+/* 桌面上一屏就装得下，字可以再大一号，读起来才像书 */
+@media (min-width: 721px) {
+  .ptext p { font-size: 16.5px; line-height: 2.05; }
+  .ptext .lead { font-size: 18.5px; }
+}
+
+@media (max-width: 720px) {
+  .cover { padding: 56px 18px 92px; }
+  .seal { width: clamp(226px, 62vw, 300px); }
+  .seal .r3 { inset: -12px; }
+  .ct { font-size: clamp(25px, 7.2vw, 31px); }
+  .csub { margin-top: 26px; letter-spacing: .3em; font-size: 10px; }
+  .preface { padding: 56px 20px 104px; }
+  .ptop { margin-bottom: 20px; }
+  .ptitle { font-size: clamp(33px, 9.2vw, 38px); letter-spacing: .18em; }
+  .pmeta { margin-top: 13px; padding-top: 10px; letter-spacing: .22em; }
+  .pwrap { padding-left: 18px; }
+  .pwrap::before { bottom: 28px; }
+  .ptext p { font-size: 14.5px; line-height: 1.95; }
+  .ptext .lead { font-size: 16px; }
+  .goBtn { width: 48px; height: 48px; }
+  .top .l .toCover { padding: 4px 6px; letter-spacing: .12em; }
+}
+
+@media (max-width: 360px) {
+  .top .l .toCover { letter-spacing: 0; padding: 4px 5px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .boot, .boot span, .ct, .csub, .cen, .preface .pwrap, .preface .ptop, .ptitle,
+  .seal .r2, .seal .r3, .goBtn::after, .app.enter { animation: none !important; }
+  .boot span { opacity: .9; }
+  .cover.lift .seal { animation: none !important; opacity: 0; }
+}

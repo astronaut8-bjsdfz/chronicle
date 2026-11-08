@@ -9,19 +9,76 @@
 <meta name="theme-color" content="#05080c">
 <title>班级编年史 · 科创8班</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%23080b10'/%3E%3Ccircle cx='16' cy='16' r='11' fill='none' stroke='%233fe0c5' stroke-opacity='.45'/%3E%3Ctext x='16' y='21' font-size='12' text-anchor='middle' fill='%233fe0c5' font-family='sans-serif'%3E8%3C/text%3E%3C/svg%3E">
-<link rel="stylesheet" href="./style.css?v=20261031a">
+<link rel="stylesheet" href="./style.css?v=20261108c">
 </head>
-<body data-view="week">
+<body data-view="week" data-stage="cover">
 
 <div class="aura"></div>
 <div class="dust" id="dust"></div>
 <div class="warp" id="warp"></div>
 <div class="band" id="band"></div>
 
-<div class="app">
+<!-- ============ 卷首 ============
+     三段式：卷首 → 序言 → 正文，全在同一个页面里切 display，不跳转。
+     每次进来都从头看一遍（不做「已读跳过」）。 -->
+<section class="cover" id="cover" aria-label="卷首">
+  <div class="boot" id="boot" aria-hidden="true">
+    <span>CHRONICLE.SYS</span>
+    <span>BOOT · <b>CLASS 8</b></span>
+    <span>LOADING ENTRIES <i>… OK</i></span>
+  </div>
+
+  <div class="seal">
+    <span class="r r3" aria-hidden="true"></span>
+    <span class="r r1" aria-hidden="true"></span>
+    <span class="r r2" aria-hidden="true"></span>
+    <h1 class="ct" id="ct">八班编年史</h1>
+  </div>
+
+  <p class="csub">2026 — 2029 · 高一 8 班</p>
+  <p class="cen">CHRONICLE OF CLASS 8</p>
+
+  <span class="cnum" aria-hidden="true">C · 00 / 02</span>
+</section>
+
+<!-- ============ 序言 ============ -->
+<section class="preface" id="preface" aria-label="序言">
+  <!-- 序言的大标题：跟卷首一样是金字，但小一号、不带金环。
+       它在竖线上面，竖线从下面正文开始，像书里一章的题头 -->
+  <div class="ptop">
+    <h2 class="ptitle" id="ptitle">序言</h2>
+    <div class="pmeta">
+      <span class="pl" id="pEn">PREFACE</span>
+      <span class="pn">01 / 02</span>
+    </div>
+  </div>
+  <div class="pwrap">
+    <div class="ptext" id="ptext"></div>
+    <div class="pfoot">
+      <span class="psign" id="psign"></span>
+      <span class="pdate" id="pdate"></span>
+    </div>
+    <!-- 序言里的箭头不走固定定位：小屏上一屏放不下正文时，固定的箭头会压住落款。
+         放在正文末尾反而更像翻页——读完了才出现 -->
+    <div class="pgo">
+      <span class="pline" aria-hidden="true"></span>
+      <button class="goBtn goIn" id="goNext2" type="button" aria-label="进入正文" title="进入">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12h14M12 6l6 6-6 6"/></svg>
+      </button>
+    </div>
+  </div>
+</section>
+
+<!-- 卷首右下角那个箭头（固定定位）。序言用自己的末尾箭头 #goNext2 -->
+<button class="goBtn" id="goNext" type="button" aria-label="进入序言" title="进入">
+  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12h14M12 6l6 6-6 6"/></svg>
+</button>
+
+<div class="app" id="app">
 
   <header class="top">
     <div class="l"><a class="brand" href="../" title="回门户"><span class="pulse"></span><span class="en">STAR&nbsp;CALENDAR&nbsp;·&nbsp;</span>星历</a>
+      <button class="toCover" id="toCover" type="button" title="回到卷首再看一遍">卷首</button>
       <span class="hint hint-w">← → 切换 · 点航线上的站可以跳</span>
       <span class="hint hint-c">← → 翻月 · 点日期跳到那一周</span></div>
     <div class="r">
@@ -207,7 +264,8 @@
   </div>
 </div>
 
-<script src="./config.js?v=20261031a"></script>
-<script src="./app.js?v=20261031a"></script>
+<script src="./config.js?v=20261108c"></script>
+<script src="./preface.js?v=20261108c"></script>
+<script src="./app.js?v=20261108c"></script>
 </body>
 </html>

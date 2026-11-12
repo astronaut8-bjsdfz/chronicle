@@ -121,6 +121,31 @@
     return 'WINTER';
   }
 
+  /* ============ 2.5 八班历（纪元） ============
+     2026-10-08 第一次月考那天 ＝ 八班历元年；
+     往前一天是八班历前1年，往后一天是八班历1年（和西元一样不往前设第 0 年）。
+     锚点在 config.js 的 eraStart，改日期不用动这里。
+
+     ⚠️ 用「两个当地零点相减 / 86400000」而不是 UTC 时间戳：
+       有夏令时的地区用 UTC 相减会差一天，这里全程本地时区。 */
+  var ERA0 = parseDay(SB.eraStart || '2026-10-08');
+
+  function eraN(d) {
+    var x = (typeof d === 'string') ? parseDay(d) : d;
+    var a = new Date(x.getFullYear(), x.getMonth(), x.getDate());
+    var b = new Date(ERA0.getFullYear(), ERA0.getMonth(), ERA0.getDate());
+    return Math.round((a - b) / 86400000);
+  }
+  /* 纪年的写法只有这一版：八班历前65年 / 八班历元年 / 八班历12年。
+     早先还给周历格子留过一版极短的「前65 / 0 / 后12」，
+     2026-11-12 起按用户要求全部改成带「八班历」的全称，短版删掉。
+     ⚠️ 全称比短版宽一倍多，周历列头因此改成上下两行（见 style.css 的 ≤900 断点）。 */
+  function eraName(d) {
+    var n = eraN(d);
+    if (!n) return '八班历元年';
+    return '八班历' + (n < 0 ? '前' + (-n) : n) + '年';
+  }
+
   var REAL = new Date();
   var TODAY = new Date(REAL.getFullYear(), REAL.getMonth(), REAL.getDate());
   var TODAYKEY = ymd(TODAY);
@@ -301,9 +326,15 @@
     w.days.forEach(function (d, k) {
       var isToday = d.key === TODAYKEY;
       var cls = 'col' + (k >= 5 ? ' we' : '') + (isToday ? ' today' : '');
+      /* 日号旁边挂八班历纪年（八班历前65年 / 八班历元年 / 八班历12年）。
+         ⚠️ 日号和纪年套在同一个 .dnum 里：.hd 是 space-between 的，
+            直接加第三个子元素会把纪年甩到列的最右边，看着像另一列。
+         ⚠️ 全称在 768–900 的七列并排里放不进一行（每格内容宽只有 85px），
+            所以 ≤900 时 .hd 改成上下两行，见 style.css。 */
       html += '<div class="' + cls + '"><div class="hd"><span class="dow">周'
-        + d.dow + (isToday ? ' · 今天' : '') + '</span><span class="md">'
-        + d.md.slice(3) + '</span></div>';
+        + d.dow + (isToday ? ' · 今天' : '') + '</span>'
+        + '<span class="dnum"><span class="md">' + d.md.slice(3) + '</span>'
+        + '<span class="era">' + eraName(d.d) + '</span></span></div>';
       if (!d.ev.length) {
         html += '<span class="none">—</span>';
       } else {
@@ -438,7 +469,7 @@
     var e = EV[i]; if (!e) return;
     var d = parseDay(e.d), wn = pad(weekNoOf(e.d));
     $('sDay').innerHTML = md(d) + ' · 周' + MON[(d.getDay() + 6) % 7]
-      + ' <b>W' + wn + '</b>';
+      + ' · <span class="era">' + eraName(e.d) + '</span> <b>W' + wn + '</b>';
     var h = '<span class="tag">' + esc(e.c) + '</span>'
       + '<h2 id="sTitle">' + esc(e.t) + '</h2>'
       + '<p class="txt' + (e.b ? '' : ' empty') + '">'
@@ -465,7 +496,8 @@
     if (!evs.length) return;
     if (evs.length === 1) { openEv(evs[0]._i); return; }
     var d = parseDay(key), wn = pad(weekNoOf(key));
-    $('sDay').innerHTML = md(d) + ' · 周' + MON[(d.getDay() + 6) % 7] + ' <b>W' + wn + '</b>';
+    $('sDay').innerHTML = md(d) + ' · 周' + MON[(d.getDay() + 6) % 7]
+      + ' · <span class="era">' + eraName(key) + '</span> <b>W' + wn + '</b>';
     var h = '<span class="tag">' + evs.length + ' 条记录</span><div class="dl">';
     evs.forEach(function (e) {
       var sum = e.b ? e.b.replace(/\s+/g, ' ') : '这一条只留了标题。';
@@ -579,7 +611,8 @@
     listEl.innerHTML = items.length
       ? items.map(function (e) {
         return '<button class="li" data-d="' + e.d + '">'
-          + '<span class="ld">' + md(parseDay(e.d)) + '</span>'
+          + '<span class="ld">' + md(parseDay(e.d))
+          + '<em class="era">' + eraName(e.d) + '</em></span>'
           + '<span class="lt"><i class="' + (CAT[e.c] || '') + '"></i>' + esc(e.t) + '</span></button>';
       }).join('')
       : '<div class="li" style="cursor:default"><span class="ld">—</span>'
@@ -1040,6 +1073,12 @@
     var P = window.CHRONICLE_PREFACE || {};
     $('ptitle').textContent = P.title || '序言';
     $('pEn').textContent = [P.en, P.zh].filter(Boolean).join(' · ') || 'PREFACE';
+    /* 标题下面那行小字（原稿的「（26.8.4）」）。preface.js 里删掉 since 就不显示 */
+    var sn = $('psince');
+    if (sn) {
+      sn.textContent = P.since ? '（' + P.since + '）' : '';
+      sn.hidden = !P.since;
+    }
     var h = '';
     if (P.lead) h += '<p class="lead">' + esc(P.lead) + '</p>';
     (P.paras || []).forEach(function (t) { if (t) h += '<p>' + esc(t) + '</p>'; });
@@ -1136,6 +1175,8 @@
     return STAGE;
   };
   window.__stageNow = function () { return STAGE; };
+  /* 八班历换算的入口：__era('2026-10-08') → '八班历元年'，验证脚本也吃它 */
+  window.__era = function (d) { return eraName(d); };
   window.__shut = closeSheet;
   window.__new = function () { openEditor(-1); };
   window.__edit = function (i) { openEditor(i); };

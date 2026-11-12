@@ -192,7 +192,22 @@ body{margin:0;background:var(--night);color:var(--ink2);font-family:var(--sans);
 .col.today .dow{color:var(--am)}
 .col .md{font:500 19px/1 var(--mono);color:#d7e8f2;letter-spacing:-.02em}
 .col.today .md{color:var(--am)}
+/* 日号旁边那串纪年（八班历前65年 / 八班历元年 / 八班历12年）。
+   ⚠️ 和 .md 一起装在 .dnum 里：.hd 是 space-between，多加一个裸子元素
+      会把纪年甩到列的最右边，看着像第二列 */
+.col .dnum{display:inline-flex;align-items:baseline;gap:5px;min-width:0}
+.col .era{font:9px/1 var(--mono);letter-spacing:.02em;color:#4b6478;white-space:nowrap}
+.col.today .era{color:rgba(240,180,95,.72)}
 .col .none{font:11px/1 var(--mono);color:#3c4d5a;letter-spacing:.1em;margin-top:6px}
+
+/* ⚠️ 纪年改成「八班历前65年」这种全称以后，七列并排时一行放不下：
+   768 宽每格内容只有 85px，而「周四」+「08」+「八班历前3年」约需 100px，
+   flex 不换行 → 直接顶出格子。所以 ≤900 就让 .hd 上下两行：
+   上面「周几」，下面「08 八班历前3年」（合计约 66px，85px 装得下）。
+   1080 以上每格 ≥136px，仍然并排。 */
+@media (max-width:900px){
+  .col .hd{flex-direction:column;align-items:flex-start;gap:5px}
+}
 
 /* ⚠️ 长内容防线（第一层）：格子里只排「标题」，一律单行省略。
    标题再长也撑不破列宽；正文根本不下到格子里，只在详情弹层出现。
@@ -273,8 +288,10 @@ body{margin:0;background:var(--night);color:var(--ink2);font-family:var(--sans);
 .sheet.on .pane{opacity:1;transform:none}
 .sheet .sb{display:flex;align-items:center;justify-content:space-between;gap:14px;
   flex:0 0 auto;padding:13px 18px;border-bottom:1px solid var(--line)}
-.sheet .sb .d{font:9.5px/1 var(--mono);letter-spacing:.2em;color:var(--muted)}
+.sheet .sb .d{font:9.5px/1.7 var(--mono);letter-spacing:.2em;color:var(--muted);min-width:0}
 .sheet .sb .d b{font-weight:400;letter-spacing:.16em;color:var(--am)}
+/* 弹层顶部那行日期里的八班历：金色，一眼能认出这是纪年不是周次 */
+.sheet .sb .d .era{color:rgba(240,180,95,.86);letter-spacing:.1em}
 .sheet .x{flex:0 0 auto;width:26px;height:26px;padding:0;border:1px solid #1e2b35;
   border-radius:2px;background:none;color:#7e94a4;font:13px/1 var(--mono);
   cursor:pointer;transition:border-color .2s,color .2s}
@@ -478,11 +495,16 @@ body[data-view="week"] .spine{animation:viewin .5s cubic-bezier(.3,.9,.3,1)}
 .cell .cm{font:8.5px/1 var(--mono);letter-spacing:.12em;color:#3d4e5b}
 
 .callist{display:none;flex-direction:column;margin-top:2px;border-top:1px solid var(--line)}
-.li{display:grid;grid-template-columns:50px 1fr;gap:10px;align-items:start;width:100%;
+.li{display:grid;grid-template-columns:62px 1fr;gap:10px;align-items:start;width:100%;
   border:0;border-bottom:1px solid rgba(120,170,200,.08);background:none;text-align:left;
   padding:10px 2px;cursor:pointer;-webkit-tap-highlight-color:transparent}
 .li:active{background:#0b141b}
 .li .ld{font:9.5px/1.7 var(--mono);letter-spacing:.1em;color:#6b8191}
+/* 日历列表里的「10.08 / 八班历前5年」：日期下面单独一行挂纪元。
+   写成全称以后一行放不下（62px 的日期列装「10.08」再塞「八班历前5年」要 80px+），
+   所以改成上下两行，日期列加到 62px；下面那行 8.5px 约占 45px，装得下。 */
+.li .ld .era{display:block;margin:3px 0 0;font-style:normal;font-size:8.5px;
+  letter-spacing:0;line-height:1.2;color:#42596a;white-space:nowrap}
 .li .lt{display:flex;gap:7px;font-size:12px;line-height:1.55;color:#b6cbd8}
 .li .lt i{flex:0 0 2px;width:2px;border-radius:1px;margin-top:5px;background:#2c4152}
 .li .lt i.k1{background:rgba(90,216,255,.72)}
@@ -820,7 +842,10 @@ body[data-stage="preface"] #goNext { display: none; }
   /* 兜底：不支持 background-clip 时就是一整块金色，不会隐形 */
   color: #f0c674;
   margin: 0;
-  font-size: clamp(31px, 4.2vw, 47px);
+  /* 下限从 31 提到 38：768 这种平板宽度上 4.2vw 只有 32px，
+     跟 18.5px 的正文几乎一样大，标题就没了气势。
+     提到 38 以后，721–905 这段稳定在 38px，正好接上 ≤720 那档的上限 38px。 */
+  font-size: clamp(38px, 4.2vw, 47px);
   font-weight: 500;
   line-height: 1;
   letter-spacing: .2em;
@@ -853,6 +878,15 @@ body[data-stage="preface"] #goNext { display: none; }
   font: 9.5px/1 var(--mono);
   letter-spacing: .3em;
   color: #5f7688;
+}
+
+/* 标题下面那行小字：原稿写在「序言」下面的（26.8.4）＝八班历起点。
+   不放正文里，也不进 pmeta 那条线，单占一行，像手稿的落笔日期 */
+.psince {
+  margin: 9px 0 0;
+  font: 10px/1 var(--mono);
+  letter-spacing: .2em;
+  color: #52697a;
 }
 .ptext p {
   margin: 0 0 1.15em;

@@ -880,14 +880,9 @@ body[data-stage="preface"] #goNext { display: none; }
   color: #5f7688;
 }
 
-/* 标题下面那行小字：原稿写在「序言」下面的（26.8.4）＝八班历起点。
-   不放正文里，也不进 pmeta 那条线，单占一行，像手稿的落笔日期 */
-.psince {
-  margin: 9px 0 0;
-  font: 10px/1 var(--mono);
-  letter-spacing: .2em;
-  color: #52697a;
-}
+/* 原来标题下面还有一行 .psince（（26.8.4）＝八班历起点）。
+   2026-11-12 这行字挪进了序言正文、跟在「前65年」后面，元素和样式一并删掉。
+   ⚠️ 别再把它加回来：那个日期放进句子里才说得通，单挂着只是个没头没尾的时间。 */
 .ptext p {
   margin: 0 0 1.15em;
   font-size: 15.5px;

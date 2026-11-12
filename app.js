@@ -1073,12 +1073,6 @@
     var P = window.CHRONICLE_PREFACE || {};
     $('ptitle').textContent = P.title || '序言';
     $('pEn').textContent = [P.en, P.zh].filter(Boolean).join(' · ') || 'PREFACE';
-    /* 标题下面那行小字（原稿的「（26.8.4）」）。preface.js 里删掉 since 就不显示 */
-    var sn = $('psince');
-    if (sn) {
-      sn.textContent = P.since ? '（' + P.since + '）' : '';
-      sn.hidden = !P.since;
-    }
     var h = '';
     if (P.lead) h += '<p class="lead">' + esc(P.lead) + '</p>';
     (P.paras || []).forEach(function (t) { if (t) h += '<p>' + esc(t) + '</p>'; });

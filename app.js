@@ -1,9 +1,11 @@
 /* ============================================================
    app.js —— 班级编年史
    ------------------------------------------------------------
-   两种数据来源，走同一套渲染：
+   两种状态，走同一套渲染：
      1) 数据库通了 → 读 chronicle 表，管理员可以增删改
-     2) 表还没建 / 连不上 → 退回内置样例，页面上明说「这是样例」
+     2) 表还没建 / 连不上 / 没配库 → 只说「没取到」，一个字的内容都不编
+        （2026-11-13 起不再退回内置样例：假记录比空白更糟，
+          分不清「这周真没事」和「根本没连上」）
    一条记录拆成两段：title（短标题，只进格子）＋ body（正文，只进弹层）。
    ============================================================ */
 (function () {
@@ -315,7 +317,50 @@
 
   /* ================= 8. 周视图 ================= */
 
+  /* 翻周那一对按钮的可用态（在火箭下面）。
+     到边界了只变暗、不禁用 —— 禁用之后点了毫无反应，用户会以为按钮坏了；
+     变暗 + 点一下会抖并提示「已经是最后一颗了」，看得懂。 */
+  function syncNav() {
+    var p = $('wkPrev'), n = $('wkNext');
+    if (!p || !n) return;
+    var down = DATA_MODE === 'error';
+    var atHead = down || CUR <= 0;
+    var atTail = down || CUR >= N - 1;
+    p.classList.toggle('dim', atHead);
+    n.classList.toggle('dim', atTail);
+    p.setAttribute('aria-disabled', atHead ? 'true' : 'false');
+    n.setAttribute('aria-disabled', atTail ? 'true' : 'false');
+  }
+
+  /* 没取到记录时的整块状态：一句真话 + 一个重试，不摆任何长得像记录的东西。
+     以前这里会退回内置样例（军训、运动会那一套），页面上看着热闹，
+     实际全是假的 —— 分不清「这周真没事」和「根本没连上」。 */
+  function paintDown() {
+    $('wkno').textContent = 'WEEK —';
+    $('range').textContent = '—';
+    $('cnt').textContent = '没有取到';
+    $('kicker').textContent = 'CHRONICLE · 未连接';
+    $('note').textContent = '没有取到记录';
+    $('lede').textContent = '记录一条都没拿到，所以下面不显示内容 —— 不放示例、不摆空格子，'
+      + '免得把假的东西当成八班真事。';
+    $('m1').textContent = '—';
+    $('m2').textContent = '—';
+    $('m3wrap').style.display = 'none';
+    grid.innerHTML = '<div class="down"><span class="dk">NO DATA</span>'
+      + '<p><b>' + esc(DATA_ERR || '连不上') + '</b></p>'
+      + '<p>换个网、刷新一次大多能好。要是一直这样，可能是数据库还没建表，'
+      + '或者这段时间确实连不上。</p>'
+      + '<button class="dbtn" type="button" onclick="location.reload()">重新加载</button></div>';
+    firstPaint = false;
+  }
+
   function paint() {
+    /* CSS 里用 body[data-mode="error"] 把没意义的部件收起来，
+       在这里统一刷，省得每处状态都记得改一次 */
+    document.body.dataset.mode = DATA_MODE;
+    syncNav();
+    if (DATA_MODE === 'error') { paintDown(); return; }
+
     var w = WEEKS[CUR];
     if (!w) return;
 
@@ -464,6 +509,8 @@
   }
 
   function goTo(idx, dir, useRocket) {
+    /* 没连上数据库时不给翻：翻过去也只有同一块「没取到」，白播一次跃迁 */
+    if (DATA_MODE === 'error') { toast('还没连上数据库，翻不了'); return; }
     if (busy || idx === CUR || idx < 0 || idx >= N) return;
     busy = true;
     if (useRocket) fly(dir);
@@ -474,12 +521,14 @@
     setTimeout(function () { busy = false; }, useRocket ? 1120 : 700);
   }
 
-  function next() { CUR < N - 1 ? goTo(CUR + 1, 1, true) : bump(); }
-  function prev() { CUR > 0 ? goTo(CUR - 1, -1, true) : bump(); }
+  function next() { CUR < N - 1 ? goTo(CUR + 1, 1, true) : bump(1); }
+  function prev() { CUR > 0 ? goTo(CUR - 1, -1, true) : bump(-1); }
   function jump(i) { if (i !== CUR) goTo(i, i > CUR ? 1 : -1, false); }
 
-  function bump() {
+  function bump(dir) {
     replay($('lift'), 'shake', 440);
+    /* 前一个按钮撞左、后一个撞右，让「是哪个到头了」看得见 */
+    replay($(dir < 0 ? 'wkPrev' : 'wkNext'), 'shake', 440);
     toast(CUR === N - 1 ? '已经是最后一颗了' : '已经是最早的一颗了', 1800);
   }
 
@@ -492,6 +541,8 @@
   }
 
   $('lift').addEventListener('click', next);
+  $('wkPrev').addEventListener('click', prev);
+  $('wkNext').addEventListener('click', next);
 
   /* ================= 10. 详情弹层 ================= */
 
@@ -618,6 +669,8 @@
   })();
 
   function paintCal() {
+    /* 没数据就别画月历：空白月历和「这个月真的没记录」长得一模一样 */
+    if (DATA_MODE === 'error') return;
     if (!CALM.length) return;
     var c = CALM[MI], y = c.y, m = c.m;
     var first = new Date(y, m, 1);
@@ -1112,25 +1165,6 @@
       + '&order=day.asc,id.asc&limit=2000');
   }
 
-  /* 内置样例：只在数据库还没建好时出现，页面上会明说是样例。
-     日期故意压在 2026 秋季，跟真实学期同段，方便看版式效果。 */
-  var DEMO = [
-    { id: 1, d: '2026-09-01', c: '班级', t: '开学第一天', b: '四十一个人，名单上四十一行。上午排座位，下午领书，谁跟谁坐同桌，就这么定下来一个学期。\n班主任站在讲台上说的第一句是：「三年很快就过去了。」当时没人信。' },
-    { id: 2, d: '2026-09-02', c: '班级', t: '第一期黑板报', b: '主题是「新起点」。画了三个晚上，最后被粉笔灰糊掉的比画上去的多。\n班名用最大号的字写在正中间。' },
-    { id: 3, d: '2026-09-07', c: '活动', t: '军训第一天', b: '晒到胳膊发红。教官说站军姿要把下巴收回去，结果一收，眼睛就不知道往哪看了。' },
-    { id: 4, d: '2026-09-11', c: '活动', t: '会操', b: '站到最后一排都在抖。走完最后一遍、队伍散开的那一秒，全场都在甩胳膊。' },
-    { id: 5, d: '2026-09-16', c: '班级', t: '第一次自我介绍', b: '每人一分钟，有人讲了整整五分钟。\n那天记下来的名字，后来有一半还是叫不全。' },
-    { id: 6, d: '2026-09-18', c: '班级', t: '班徽定稿', b: '一个圈，中间是个 8。投票那天收了七份稿子，最后选中的是最简单的那份。' },
-    { id: 7, d: '2026-09-24', c: '活动', t: '篮球赛第一场', b: '输了 6 分。最后两分钟追回来 4 分，然后被一个三分球按死。\n场边喊得最响的那个人，第二天嗓子哑了。' },
-    { id: 8, d: '2026-09-30', c: '班级', t: '国庆前最后一下午', b: '没人想上课。最后一节自习，黑板上写满了「假期愉快」，被值日生擦了一半又停下。' },
-    { id: 9, d: '2026-10-12', c: '活动', t: '运动会 · 4×100 第三', b: '四个人，四棒。第三棒交接的时候差点掉棒，手在空气里抓了两下，抓到了。\n跑完在看台下坐了很久，谁都没说话，然后一起笑出来。\n这是这个秋天最好的一天。' },
-    { id: 10, d: '2026-10-16', c: '活动', t: '合唱节', b: '唱跑了一个声部。第二段副歌，第二排从左边数第四个人提前半拍进来，然后整排跟着他跑了。\n下台之后指挥说「挺好」，没人知道他是真觉得好，还是不想说。' },
-    { id: 11, d: '2026-10-20', c: '学习', t: '第一次月考', b: '成绩表在走廊贴了一节课。看的人比贴的人多，走了又回来的也不少。' },
-    { id: 12, d: '2026-10-23', c: '班级', t: '值日表重排', b: '班会上重新排下个月的值日。有人换到周三，有人换到周五。' },
-    { id: 13, d: '2026-10-27', c: '活动', t: '体检', b: '排队排了四十分钟。量身高的时候所有人都把脚跟贴紧、把脖子往上伸，测完再偷偷比一遍数字。' },
-    { id: 14, d: '2026-10-29', c: '班级', t: '图书角开张', b: '一个旧书架，从办公室后面搬来的，擦了三遍还有灰。\n第一本被借走的是《三体》，借书的人说小学看过一遍，想再看一遍。\n登记表是用 A4 纸手画的：书名、借的人、借的日期、还的日期。第一天填了六行。\n\n书架第二层最右边那格还空着。' }
-  ];
-
   function setNotice(kind, html) {
     var n = $('notice');
     if (!html) { n.hidden = true; return; }
@@ -1149,10 +1183,14 @@
   }
 
   function boot() {
+    /* 没配库就直接说没配，不塞样例。
+       样例只在开发时有点用，放到线上就是「一打开有很多记录」的假象 ——
+       用户明确要求：加载不出来的时候不许显示虚拟内容。 */
     if (!HAS_BACKEND) {
-      DATA_MODE = 'demo';
-      buildIndex(DEMO, null);
-      setNotice('warn', '<b>没配置数据库</b>现在显示的是内置样例，改了也不会保存。');
+      DATA_MODE = 'error';
+      DATA_ERR = '这个页面还没连上数据库';
+      buildIndex([], null);
+      setNotice('warn', '<b>没有配置</b>数据库地址或 key，所以什么内容都不显示。');
       finish();
       return;
     }
@@ -1164,15 +1202,12 @@
           + '管理员从右上角进编辑，记完第一条，这块就活了。');
       }
     }).catch(function (err) {
-      DATA_MODE = 'demo';
-      DATA_ERR = sbMsg(err);
-      buildIndex(DEMO, null);
-      if (isMissingTable(err)) {
-        setNotice('', '<b>样例</b>编年史表还没建，现在显示的是内置样例。'
-          + '跑一遍 supabase-setup-chronicle.sql 就会自动换成真数据。');
-      } else {
-        setNotice('warn', '<b>连不上</b>' + esc(DATA_ERR) + '　现在显示的是内置样例。');
-      }
+      DATA_MODE = 'error';
+      DATA_ERR = isMissingTable(err) ? '编年史表还没建' : sbMsg(err);
+      buildIndex([], null);
+      setNotice('warn', isMissingTable(err)
+        ? '<b>表还没建</b>跑一遍 supabase-setup-chronicle.sql 就会自动换成真数据。这次不显示示例。'
+        : '<b>没取到记录</b>' + esc(DATA_ERR) + '　这次不显示示例内容，也不假装是空的。');
     }).then(finish);
   }
 
@@ -1302,7 +1337,12 @@
       mode: DATA_MODE, err: DATA_ERR, n: EV.length, weeks: N, cur: CUR,
       view: VIEW, mi: MI, months: CALM.length, editing: ED.on,
       label: ED.label, cell: WEEKS[CUR] ? WEEKS[CUR].key : null,
-      note: $('note').textContent, lede: $('lede').textContent
+      note: $('note').textContent, lede: $('lede').textContent,
+      /* 翻周按钮的两个状态，断言直接读这里，不用去猜 CSS */
+      nav: {
+        prevDim: $('wkPrev').classList.contains('dim'),
+        nextDim: $('wkNext').classList.contains('dim')
+      }
     });
   };
 })();

@@ -121,10 +121,28 @@ body{margin:0;background:var(--night);color:var(--ink2);font-family:var(--sans);
 .rocket .pad::after{content:"";position:absolute;inset:-9px;border-radius:50%;
   border:1px solid rgba(240,180,95,.16);animation:pad 3.2s ease-out infinite}
 @keyframes pad{0%{transform:scale(.75);opacity:.8}100%{transform:scale(1.25);opacity:0}}
-.rocket .cap{position:absolute;left:50%;bottom:-27px;transform:translateX(-50%);
-  font:9.5px/1 var(--mono);letter-spacing:.28em;color:#9a7c3f;white-space:nowrap;
-  transition:color .2s}
-.rocket:hover .cap{color:var(--am)}
+
+/* 翻周按钮：原来这个位置只有「发射」两个字。
+   两个按钮比那行小字宽得多，从左沿起算会伸到星球底下 —— 故意的，
+   读起来像一块挂在火箭下方的控制条，而不是又一粒散件。
+   ⚠️ 它们必须在 <button class="rocket"> 外面：button 不能嵌 button。 */
+.wknav{position:absolute;z-index:47;left:22px;bottom:6px;
+  display:flex;gap:5px}
+.wkbtn{display:inline-flex;align-items:center;gap:5px;
+  padding:7px 10px;border-radius:999px;cursor:pointer;
+  border:1px solid rgba(240,180,95,.26);
+  background:rgba(8,14,20,.72);
+  font:10.5px/1 var(--mono);letter-spacing:.1em;color:#c2a068;
+  -webkit-tap-highlight-color:transparent;
+  transition:color .18s,border-color .18s,background .18s,transform .12s}
+.wkbtn .ar{font-size:12px;line-height:1;color:#8a6f3f;transition:color .18s}
+.wkbtn:hover{color:var(--am);border-color:rgba(240,180,95,.6);
+  background:rgba(240,180,95,.08)}
+.wkbtn:hover .ar{color:var(--am)}
+.wkbtn:active{transform:translateY(1px)}
+/* 到头了：变暗但仍然可点（点一下会抖一下并在底部说明是到头了）。
+   不用 disabled —— disabled 点了毫无反应，反而像按钮坏了。 */
+.wkbtn.dim{opacity:.4}
 .rocket:hover{filter:drop-shadow(0 8px 22px rgba(240,180,95,.3))}
 .rocket .flame{transform-origin:30px 62px;transform:scaleY(.62);opacity:.92;
   transition:transform .25s,opacity .25s;
@@ -374,11 +392,26 @@ body{margin:0;background:var(--night);color:var(--ink2);font-family:var(--sans);
   .planet{width:158px;height:158px}
   .ring{width:230px;height:60px;margin:-30px 0 0 -115px}
   .rocket{width:48px;height:78px;left:14px;bottom:10px}
+  /* 这一段火箭几乎贴着 orb 底，按钮没地方往下降 —— 改放到它的右边，
+     水平错开就完全不打架（火箭 x 14–62，按钮从 78 起）。 */
+  .wknav{left:78px;bottom:8px}
+  .wkbtn{padding:6px 9px;font-size:10px}
   .readout h1{font-size:26px}
   .col{min-height:150px;padding:9px 9px 11px;--cpx:9px}
   .col .md{font-size:16px}
   .ev .t{font-size:11px}
   .spine .hint{display:none}
+}
+/* 721–900 这段夹在两种排法中间：右侧（WEEK＋日期＋条数＋视图开关）已经顶到边，
+   左边那句「← → 切换 · 点航线上的站可以跳」被挤成一列一个字，
+   还会撑出 8px 的横向滚动（768 下实测 785/768）。跟 ≤720 一样先收起来。
+   ⚠️ 要连 hint-c 一起收：日历视图下它靠更高特异性冒出来，不带 !important 压不住。 */
+@media (max-width:900px){
+  .top .l .hint,
+  body[data-view="cal"] .top .l .hint-c{display:none!important}
+  /* 721–730 这段还得再挤一点：右侧那一串读数一个字都不肯换行，
+     10px 字号在 721 宽时正好顶出 9px。降到 9px 就够，不必删内容。 */
+  .top .r{font-size:9px;gap:7px}
 }
 @media (max-width:720px){
   .app{padding:14px 14px 16px;gap:14px}
@@ -402,7 +435,10 @@ body{margin:0;background:var(--night);color:var(--ink2);font-family:var(--sans);
   .planet{width:126px;height:126px}
   .ring{width:192px;height:50px;margin:-25px 0 0 -96px}
   .rocket{left:calc(50% - 94px);bottom:30px;width:46px;height:72px}
-  .rocket .cap{bottom:-19px;font-size:8px;letter-spacing:.2em}
+  /* 手机上同理，放在火箭右侧：火箭 x 从 50%-94 起、宽 46，
+     按钮从它右边 12px 接上，垂直跟火箭下半截对齐。 */
+  .wknav{left:calc(50% - 36px);bottom:24px;gap:4px}
+  .wkbtn{padding:6px 8px;font-size:10px;letter-spacing:.06em}
   .grid{max-height:none}                    /* 桌面那条 292px 限高会把后三天裁掉 */
   .readout h1{font-size:23px;margin-top:8px}
   .readout .lede{font-size:12.5px}
@@ -606,6 +642,35 @@ body[data-view="week"] .spine{animation:viewin .5s cubic-bezier(.3,.9,.3,1)}
    之前就是这个坑 —— 元素明明加了 hidden，页面上照样显示。 */
 [hidden]{display:none!important}
 
+/* ---------- 使用说明（页面上方，默认收起） ---------- */
+.guide{width:100%;flex:0 0 auto;border:1px solid rgba(120,170,200,.14);
+  border-radius:3px;background:rgba(10,18,25,.52)}
+.guide summary{display:flex;align-items:center;gap:9px;cursor:pointer;
+  padding:9px 12px;list-style:none;
+  font:9.5px/1 var(--mono);letter-spacing:.18em;color:#7d94a4;
+  -webkit-tap-highlight-color:transparent}
+.guide summary::-webkit-details-marker{display:none}
+.guide summary:hover{color:#cfe2ee}
+.guide .gi{flex:0 0 auto;display:grid;place-items:center;width:15px;height:15px;
+  border-radius:50%;border:1px solid rgba(240,180,95,.4);
+  color:var(--am);font-size:9px;letter-spacing:0;line-height:1}
+.guide .gt{flex:0 0 auto;color:var(--am);letter-spacing:.2em}
+.guide .gs{flex:1 1 auto;min-width:0;color:#46596a;letter-spacing:.1em;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.guide .gx{flex:0 0 auto;color:#5d7283}
+.guide .gx::after{content:"展开"}
+.guide[open] .gx::after{content:"收起"}
+/* 展开后副标题没用了，把位置让给右边的「收起」 */
+.guide[open] .gs{display:none}
+.gb{padding:2px 12px 13px;border-top:1px solid rgba(120,170,200,.1)}
+.gb dl{margin:0;padding:0;display:grid;grid-template-columns:auto 1fr;gap:9px 14px}
+.gb dt{font:9.5px/1.7 var(--mono);letter-spacing:.12em;color:var(--am);
+  white-space:nowrap;padding-top:1px}
+.gb dd{margin:0;font-size:12.5px;line-height:1.78;color:#90a5b4}
+.gb dd b{color:#d7e8f2;font-weight:500}
+.gfoot{margin:12px 0 0;padding-top:9px;border-top:1px solid rgba(120,170,200,.08);
+  font-size:11px;line-height:1.7;color:#5f7484}
+
 /* ---------- 顶部提示条（示例数据 / 表还没建 / 加载失败） ---------- */
 .notice{display:flex;align-items:center;gap:9px;width:100%;
   padding:8px 12px;border:1px solid rgba(240,180,95,.26);
@@ -619,6 +684,31 @@ body[data-view="week"] .spine{animation:viewin .5s cubic-bezier(.3,.9,.3,1)}
   border-radius:2px;background:none;color:inherit;cursor:pointer;
   font:9px/1.6 var(--mono);letter-spacing:.14em}
 .notice .nx:hover{border-color:var(--am);color:var(--am)}
+
+/* ---------- 没取到记录：一块面板，不摆任何示例 ----------
+   ⚠️ 网格必须改成 block：它原本是 7 列 + max-height:292px + overflow:hidden，
+      面板塞进去会被挤成一列并被裁掉半截。 */
+body[data-mode="error"] .grid{display:block;min-height:0;max-height:none;
+  background:none;border:0;overflow:visible}
+/* 视图开关、底部航线、日历在失败态没有意义。留着的话，日历会显示一个空白月，
+   跟「这个月真的没记录」长得一模一样 —— 那还是骗人。 */
+body[data-mode="error"] .vt,
+body[data-mode="error"] .spine,
+body[data-mode="error"] .calview{display:none!important}
+/* 手机上 .cnt 本来就被收起来了，只剩「WEEK —」和后面一个孤零零的斜杠；
+   桌面上 .cnt 还在（「没有取到」），只把中间那个斜杠去掉。 */
+body[data-mode="error"] .top .r .sep.cntsep{display:none!important}
+
+.down{display:flex;flex-direction:column;align-items:flex-start;gap:10px;
+  padding:20px 22px;border:1px dashed rgba(240,140,120,.28);border-radius:3px;
+  background:rgba(240,120,100,.035)}
+.down .dk{font:9.5px/1 var(--mono);letter-spacing:.22em;color:#f09a86}
+.down p{margin:0;font-size:13px;line-height:1.85;color:#8ea3b2;max-width:62ch}
+.down p b{color:#e6f2f9;font-weight:500}
+.down .dbtn{margin-top:2px;padding:7px 14px;border:1px solid rgba(240,180,95,.36);
+  border-radius:2px;background:none;color:#d7b98c;cursor:pointer;
+  font:9.5px/1 var(--mono);letter-spacing:.16em;transition:all .18s}
+.down .dbtn:hover{border-color:var(--am);color:var(--am)}
 
 /* ---------- 编辑条：只有管理员登录后才出现 ---------- */
 .edbar{display:flex;align-items:center;gap:14px;width:100%;flex:0 0 auto;
@@ -1043,6 +1133,14 @@ body[data-stage="preface"] #goNext { display: none; }
   .ptext .lead { font-size: 16px; }
   .goBtn { width: 48px; height: 48px; }
   .top .l .toCover { padding: 4px 6px; letter-spacing: .12em; }
+
+  /* 使用说明：手机上两列会被挤成一条窄缝，改成「标题在上、正文在下」。
+     ⚠️ 必须写在这个文件靠后的位置 —— `.gb dl` 的基础规则在后面才定义，
+        写在前面那个 720 块里会被它整条盖掉（同特异性，后者胜）。 */
+  .gb { padding: 2px 11px 12px; }
+  .gb dl { grid-template-columns: 1fr; gap: 2px; }
+  .gb dt { padding-top: 7px; }
+  .gb dd { font-size: 12px; }
 }
 
 @media (max-width: 360px) {

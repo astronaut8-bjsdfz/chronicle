@@ -182,6 +182,7 @@ body{margin:0;background:var(--night);color:var(--ink2);font-family:var(--sans);
   border:1px solid var(--line);border-radius:3px;overflow:hidden;
   flex:0 1 auto;min-height:186px;max-height:292px}
 .col{background:#070c11;padding:11px 12px 13px;min-height:120px;min-width:0;
+  --cpx:12px;
   display:flex;flex-direction:column;gap:9px;position:relative}
 .col.we{background:#080e14}
 .col.today{background:#0b141b}
@@ -199,6 +200,37 @@ body{margin:0;background:var(--night);color:var(--ink2);font-family:var(--sans);
 .col .era{font:9px/1 var(--mono);letter-spacing:.02em;color:#4b6478;white-space:nowrap}
 .col.today .era{color:rgba(240,180,95,.72)}
 .col .none{font:11px/1 var(--mono);color:#3c4d5a;letter-spacing:.1em;margin-top:6px}
+
+/* ---------- 多日记录：一件事连记几天 ----------
+   每格画一段 3px 的色条，用负 margin 顶到格子边缘，相邻格之间只剩 1px 的
+   网格缝，视觉上连成一条横贯几天的带子；首尾带圆角，像一支铅笔划过去。
+   ⚠️ 不做成一条真正跨列（grid-column: 1/4）的横带：390 手机上每格内容宽
+      只有 40px，带子里塞不下一个字，还会把「一格＝一天」这条边界抹掉 ——
+      而那条边界正是周历能读清楚的根本。 */
+.spanbar{display:block;height:3px;margin:-4px calc(-1 * var(--cpx, 12px)) -2px;
+  background:rgba(240,180,95,.68)}
+.spanbar.k1{background:rgba(90,216,255,.62)}
+.spanbar.k2{background:rgba(240,180,95,.68)}
+.spanbar.k3{background:rgba(170,155,255,.64)}
+.spanbar.a{border-radius:2px 0 0 2px}
+.spanbar.z{border-radius:0 2px 2px 0}
+.spanbar.solo{display:none}          /* 一天的事不画带子 */
+
+/* 区间里的第二天、第三天：格子不重复写标题，只留一个冷淡的「续」。
+   ⚠️ 必须有个东西占位：空着会显示破折号（「空着也是一种记录」），
+      等于同一件事昨天记了、今天又什么都没发生，自相矛盾。 */
+.ev.cont{padding-left:7px;border-left:2px solid rgba(120,170,200,.16)}
+.ev.cont .t{font-size:11px;letter-spacing:.12em;color:#54697a}
+
+/* ⚠️ ≤720 是单列（一天一行），横向色带在这里连不成一条：
+   三行各留一条横线，看着像三个分隔符。改成每行左侧一段竖条，
+   上下接起来才读得出「这几行说的是同一件事」。 */
+@media (max-width:720px){
+  .spanbar{position:absolute;left:0;top:0;bottom:0;width:3px;height:auto;margin:0}
+  .spanbar.a{border-radius:2px 2px 0 0}
+  .spanbar.z{border-radius:0 0 2px 2px}
+  .spanbar.m{border-radius:0}
+}
 
 /* ⚠️ 纪年改成「八班历前65年」这种全称以后，七列并排时一行放不下：
    768 宽每格内容只有 85px，而「周四」+「08」+「八班历前3年」约需 100px，
@@ -343,7 +375,7 @@ body{margin:0;background:var(--night);color:var(--ink2);font-family:var(--sans);
   .ring{width:230px;height:60px;margin:-30px 0 0 -115px}
   .rocket{width:48px;height:78px;left:14px;bottom:10px}
   .readout h1{font-size:26px}
-  .col{min-height:150px;padding:9px 9px 11px}
+  .col{min-height:150px;padding:9px 9px 11px;--cpx:9px}
   .col .md{font-size:16px}
   .ev .t{font-size:11px}
   .spine .hint{display:none}
@@ -492,6 +524,9 @@ body[data-view="week"] .spine{animation:viewin .5s cubic-bezier(.3,.9,.3,1)}
 .ci.k1::before{background:rgba(90,216,255,.72)}
 .ci.k2::before{background:rgba(240,180,95,.78)}
 .ci.k3::before{background:rgba(170,155,255,.75)}
+/* 区间中间日：格子里写「续」，别空着 */
+.ci.cont{color:#52697a}
+.ci.cont::before{background:rgba(120,170,200,.22)}
 .cell .cm{font:8.5px/1 var(--mono);letter-spacing:.12em;color:#3d4e5b}
 
 .callist{display:none;flex-direction:column;margin-top:2px;border-top:1px solid var(--line)}

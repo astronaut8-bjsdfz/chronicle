@@ -68,7 +68,7 @@
     if (j.code === '22023') return m || '填的内容不合要求';
     if (j.code === 'P0002') return '这条记录已经不在了';
     if (j.code === 'PGRST202' || /Could not find the function/.test(m)) {
-      return '数据库函数还没建，先把 supabase-setup-chronicle.sql 跑一遍';
+      return '数据库还没升级：先跑 chronicle-合并多日.sql';
     }
     if (j.code === 'PGRST205' || j.code === '42P01' || e.status === 404) return '编年史表还没建';
     if (m) return m;
@@ -154,7 +154,11 @@
 
   var EV = [];            // 全部记录（按日期升序）
   var WEEKS = [];         // 按周分组，含空周
-  var byDay = {};         // 逐日索引
+  var byDay = {};         // 逐日索引：只放「起始日」，一件事只有一条
+  /* 区间覆盖：这一天属于哪条多日记录的第几天。
+     ⚠️ 和 byDay 分开：byDay 决定「哪一天有记录」（所以一件跨三天的事
+        只算一件、只在一处写标题），cover 只负责「这天还在那件事里」。 */
+  var cover = {};
   var CUR = 0, N = 0;
   var CALM = [], MI = 0;
   var busy = false, firstPaint = true;
@@ -175,7 +179,30 @@
     }).map(function (e, i) { e._i = i; return e; });
 
     byDay = {};
+    cover = {};
     EV.forEach(function (e) { (byDay[e.d] = byDay[e.d] || []).push(e); });
+
+    /* 同一天里，跨多日的那条排前面。
+       ⚠️ 必须排：格子里只摊 MAXEV 条，剩下的进「+N 条」。
+          如果首日已经有三条单日记录，跨三天那条的标题就会被挤进
+          「+N 条」，屏幕上只剩后面两格孤零零的「续」，完全看不懂。 */
+    Object.keys(byDay).forEach(function (k) {
+      byDay[k].sort(function (a, b) {
+        return (b.end ? 1 : 0) - (a.end ? 1 : 0) || (a.id - b.id);
+      });
+    });
+
+    /* 把区间铺到每一天：cover['2026-10-13'] = {e, i:1, n:3}。
+       跨周不用特殊处理 —— 天是连续的，周只是切法不同。 */
+    EV.forEach(function (e) {
+      if (!e.end) return;
+      var s = parseDay(e.d), t = parseDay(e.end);
+      var n = Math.round((t - s) / 86400000) + 1;
+      if (n < 2) return;                    /* 脏数据：结束早于开始，当单日 */
+      for (var i = 0; i < n; i++) {
+        cover[ymd(addDays(s, i))] = { e: e, i: i, n: n };
+      }
+    });
 
     var first = EV.length ? parseDay(EV[0].d) : TODAY;
     var last = EV.length ? parseDay(EV[EV.length - 1].d) : TODAY;
@@ -301,20 +328,29 @@
     /* 跃迁过去时让新星球「浮现」一下；首次进站不播，否则一打开就在闪 */
     if (!firstPaint) replay(planet, 'swap', 1100);
 
-    /* 读数 */
+    /* 读数
+       ⚠️ n 是「件事」不是「天」：一件跨三天的事只算一件（byDay 只登记起始日）。
+          dayN 反过来是「覆盖了几天」，包含只是「还在那件事里」的那几天 ——
+          两个口径必须分开算，否则「3 条记录 · 1 天」这种自相矛盾的读数会回来。 */
     var n = w.ev.length;
-    var dayN = w.days.filter(function (d) { return d.ev.length; }).length;
+    var dayN = w.days.filter(function (d) { return d.ev.length || cover[d.key]; }).length;
+    var spanN = w.days.filter(function (d) { return cover[d.key]; }).length;
+    var firstSpan = null;
+    w.days.forEach(function (d) { if (!firstSpan && cover[d.key]) firstSpan = cover[d.key]; });
     $('wkno').textContent = 'WEEK ' + pad(w.no) + ' / ' + pad(N);
     $('range').textContent = md(w.start) + ' — ' + md(addDays(w.start, 6));
-    $('cnt').textContent = n ? n + ' 条记录' : '没有记录';
+    $('cnt').textContent = n
+      ? n + (spanN ? ' 件事 · 覆盖 ' + dayN + ' 天' : ' 条记录')
+      : (spanN ? '覆盖 ' + dayN + ' 天' : '没有记录');
     $('kicker').textContent = 'WEEK ' + pad(w.no) + ' · ' + w.start.getFullYear() + ' ' + season(w.start)
       + (isFuture ? ' · 还没到' : (isThisWeek ? ' · 本周' : ''));
     $('note').textContent = weekPhrase(w);
 
     var dowList = w.days.filter(function (d) { return d.ev.length; })
       .map(function (d) { return '周' + d.dow; });
-    $('lede').textContent = n
-      ? '记录落在' + dowList.join('、') + '。'
+    $('lede').textContent = (n || spanN)
+      ? (n ? '记录落在' + dowList.join('、') + '。' : '这一周接上了之前那件事。')
+      + (firstSpan ? '「' + firstSpan.e.t + '」一连 ' + firstSpan.n + ' 天，格子上那条色带就是它。' : '')
       + (7 - dayN >= 4 ? '其余几天什么都没发生 —— 这也很正常。' : '')
       : '这一周什么都没有留下。空着也是一种记录。';
 
@@ -325,7 +361,9 @@
     var html = '';
     w.days.forEach(function (d, k) {
       var isToday = d.key === TODAYKEY;
-      var cls = 'col' + (k >= 5 ? ' we' : '') + (isToday ? ' today' : '');
+      var cv = cover[d.key];
+      var cls = 'col' + (k >= 5 ? ' we' : '') + (isToday ? ' today' : '')
+        + (cv ? ' span' : '');
       /* 日号旁边挂八班历纪年（八班历前65年 / 八班历元年 / 八班历12年）。
          ⚠️ 日号和纪年套在同一个 .dnum 里：.hd 是 space-between 的，
             直接加第三个子元素会把纪年甩到列的最右边，看着像另一列。
@@ -335,8 +373,28 @@
         + d.dow + (isToday ? ' · 今天' : '') + '</span>'
         + '<span class="dnum"><span class="md">' + d.md.slice(3) + '</span>'
         + '<span class="era">' + eraName(d.d) + '</span></span></div>';
+
+      /* 多日记录：每格画一段 3px 的色条，段与段之间只隔 1px 的网格缝，
+         视觉上连成一条横贯几天的带子（首尾带圆角）。
+         ⚠️ 不要做成一条真正的跨列横带：390 手机上每格内容宽只有 40px，
+            带子里塞不下一个字，还会把「一格＝一天」的边界抹掉。 */
+      if (cv) {
+        var edge = cv.n < 2 ? ' solo'
+          : cv.i === 0 ? ' a'
+            : cv.i === cv.n - 1 ? ' z' : ' m';
+        html += '<i class="spanbar ' + (CAT[cv.e.c] || 'k1') + edge + '" title="'
+          + esc(cv.e.t) + ' · 第 ' + (cv.i + 1) + ' / ' + cv.n + ' 天"></i>';
+      }
+
       if (!d.ev.length) {
-        html += '<span class="none">—</span>';
+        /* 空日：本来是一个破折号（「空着也是一种记录」）。
+           ⚠️ 但如果这天在某个区间里，就不是空的 —— 显示「续」，
+              否则同一件事昨天记了、今天又变成「什么都没发生」，自相矛盾。 */
+        html += cv
+          ? '<div class="evlist"><div class="ev cont' + (d.key > TODAYKEY ? ' future' : '')
+            + '" data-i="' + cv.e._i + '" title="' + esc(cv.e.t) + '">'
+            + '<span class="t">续</span></div></div>'
+          : '<span class="none">—</span>';
       } else {
         html += '<div class="evlist">';
         d.ev.slice(0, MAXEV).forEach(function (e) {
@@ -468,14 +526,26 @@
   function openEv(i) {
     var e = EV[i]; if (!e) return;
     var d = parseDay(e.d), wn = pad(weekNoOf(e.d));
-    $('sDay').innerHTML = md(d) + ' · 周' + MON[(d.getDay() + 6) % 7]
-      + ' · <span class="era">' + eraName(e.d) + '</span> <b>W' + wn + '</b>';
+    /* 多日记录：顶栏写区间。纪年只标首日 —— 「八班历前62年 — 八班历前60年」
+       又长又难读，跨度用「3 天」表达就够。 */
+    var end = e.end ? parseDay(e.end) : null;
+    var nDay = end ? Math.round((end - d) / 86400000) + 1 : 0;
+    if (nDay < 2) nDay = 0;
+    var weekTxt = wn;
+    if (nDay) {
+      var we = pad(weekNoOf(e.end));
+      if (we !== wn) weekTxt = wn + '–' + we;      /* 跨周才写成 W07–W08 */
+    }
+    $('sDay').innerHTML = md(d) + (nDay ? ' — ' + md(end) : '')
+      + ' · 周' + MON[(d.getDay() + 6) % 7]
+      + ' · <span class="era">' + eraName(e.d) + '</span> <b>W' + weekTxt + '</b>'
+      + (nDay ? ' · ' + nDay + ' 天' : '');
     var h = '<span class="tag">' + esc(e.c) + '</span>'
       + '<h2 id="sTitle">' + esc(e.t) + '</h2>'
       + '<p class="txt' + (e.b ? '' : ' empty') + '">'
       + (e.b ? esc(e.b) : '这一条只留了标题，没有更多内容。') + '</p>';
     if (e.img) h += '<img class="ph" src="' + esc(e.img) + '" alt="" loading="lazy">';
-    h += '<p class="foot">' + e.d + ' · 第 ' + wn + ' 周</p>';
+    h += '<p class="foot">' + e.d + (nDay ? ' — ' + e.end : '') + ' · 第 ' + weekTxt + ' 周</p>';
     if (ED.on) {
       h += '<div class="footacts"><span class="sp"></span>'
         + '<button class="btn" data-act="edit" data-i="' + e._i + '">改这条</button>'
@@ -493,7 +563,12 @@
   /* 「+N 条」：一天有四五条时，格子只摊三条，剩下的在这里一次看完 */
   function openDay(key) {
     var evs = byDay[key] || [];
-    if (!evs.length) return;
+    if (!evs.length) {
+      /* 区间中间日：这天没有自己的记录，点开就是那件事本身 */
+      var cv = cover[key];
+      if (cv) openEv(cv.e._i);
+      return;
+    }
     if (evs.length === 1) { openEv(evs[0]._i); return; }
     var d = parseDay(key), wn = pad(weekNoOf(key));
     $('sDay').innerHTML = md(d) + ' · 周' + MON[(d.getDay() + 6) % 7]
@@ -548,7 +623,7 @@
     var first = new Date(y, m, 1);
     var lead = (first.getDay() + 6) % 7;        /* 周一开头 */
     var start = addDays(first, -lead);
-    var html = '', nRec = 0, nDay = 0;
+    var html = '', nRec = 0, nDay = 0, nSpanM = 0;
 
     /* 行数按本月实际需要算（5 或 6 行）：固定 42 格会让月底多出一整行灰的 */
     var nDaysM = new Date(y, m + 1, 0).getDate();
@@ -561,28 +636,37 @@
       var d = addDays(start, i), key = ymd(d);
       var inM = d.getMonth() === m && d.getFullYear() === y;
       var evs = byDay[key] || [];
+      var cv = cover[key];
+      var has = evs.length || cv;
+      /* nRec 只数起始日：区间中间日不再算一条新记录，但天数要算上 */
       if (inM && evs.length) { nRec += evs.length; nDay++; }
+      else if (inM && cv) nDay++;
+      if (inM && cv && cv.i === 0) nSpanM++;
 
       var cls = 'cell' + (inM ? '' : ' out')
         + ((d.getDay() === 0 || d.getDay() === 6) ? ' we' : '')
-        + (evs.length ? ' has' : '')
+        + (has ? ' has' : '')
+        + (cv ? ' span' : '')
         + (key === TODAYKEY ? ' today' : '');
 
-      html += '<div class="' + cls + '"' + (evs.length ? ' data-d="' + key + '"' : '') + '>'
+      html += '<div class="' + cls + '"' + (has ? ' data-d="' + key + '"' : '') + '>'
         + '<div class="ch"><span class="dn">' + d.getDate() + '</span>';
-      if (evs.length) {
-        html += '<span class="dots">' + evs.slice(0, 3).map(function (e) {
+      var dots = evs.length ? evs : (cv ? [cv.e] : []);
+      if (dots.length) {
+        html += '<span class="dots">' + dots.slice(0, 3).map(function (e) {
           return '<i class="' + (CAT[e.c] || '') + '"></i>';
         }).join('') + '</span>';
       }
       html += '</div>';
 
-      if (inM && evs.length) {
+      if (inM && has) {
         html += '<div class="cl">';
         evs.slice(0, 2).forEach(function (e) {
           html += '<div class="ci ' + (CAT[e.c] || '') + (e.d > TODAYKEY ? ' future' : '') + '">'
             + '<span>' + esc(e.t) + '</span></div>';
         });
+        /* 区间中间日：格子不能空着，否则看着像「这件事中间断了」 */
+        if (!evs.length && cv) html += '<div class="ci cont"><span>续</span></div>';
         if (evs.length > 2) html += '<div class="cm">+' + (evs.length - 2) + ' 条</div>';
         html += '</div>';
       }
@@ -593,14 +677,19 @@
     /* 头 */
     $('calY').textContent = y;
     $('calM').textContent = MON_CN[m];
-    $('calStat').textContent = nRec ? (nRec + ' 条记录 · ' + nDay + ' 天') : '这个月没有记录';
+    $('calStat').textContent = nRec
+      ? (nRec + (nSpanM ? ' 件事 · ' : ' 条记录 · ') + nDay + ' 天')
+      : '这个月没有记录';
     $('moPrev').disabled = MI === 0;
     $('moNext').disabled = MI === CALM.length - 1;
 
     /* 日历是全局视角，顶栏就别再挂「当前第几周」了 */
-    var nDayAll = Object.keys(byDay).length;
+    var seenDay = {}, nDayAll = 0;
+    Object.keys(byDay).forEach(function (k) { if (!seenDay[k]) { seenDay[k] = 1; nDayAll++; } });
+    Object.keys(cover).forEach(function (k) { if (!seenDay[k]) { seenDay[k] = 1; nDayAll++; } });
+    var nSpan = EV.filter(function (e) { return e.end; }).length;
     $('calline').textContent = (WEEKS.length ? WEEKS[0].start.getFullYear() : y) + ' '
-      + season(new Date(y, m, 1)) + ' · ' + EV.length + ' 条'
+      + season(new Date(y, m, 1)) + ' · ' + EV.length + (nSpan ? ' 件事' : ' 条')
       + (nDayAll && nDayAll !== EV.length ? ' · ' + nDayAll + ' 天' : '');
 
     /* 手机：格子里只放得下日号，标题在这个列表里补回来 */
@@ -610,8 +699,15 @@
     });
     listEl.innerHTML = items.length
       ? items.map(function (e) {
+        /* 多日的写成「10.12–14」；只到月内同一天才省月份，跨月就写全 */
+        var tail = '';
+        if (e.end) {
+          var ed2 = parseDay(e.end);
+          tail = '–' + (ed2.getMonth() === parseDay(e.d).getMonth()
+            ? md(ed2).slice(3) : md(ed2));
+        }
         return '<button class="li" data-d="' + e.d + '">'
-          + '<span class="ld">' + md(parseDay(e.d))
+          + '<span class="ld">' + md(parseDay(e.d)) + tail
           + '<em class="era">' + eraName(e.d) + '</em></span>'
           + '<span class="lt"><i class="' + (CAT[e.c] || '') + '"></i>' + esc(e.t) + '</span></button>';
       }).join('')
@@ -835,7 +931,7 @@
 
   /* ================= 14. 编辑 · 表单 ================= */
 
-  var edForm = $('edForm'), fDay = $('fDay'), fTitle = $('fTitle'),
+  var edForm = $('edForm'), fDay = $('fDay'), fEnd = $('fEnd'), fTitle = $('fTitle'),
     fBody = $('fBody'), fImg = $('fImg'), fCat = $('fCat');
 
   function setCat(c) {
@@ -870,6 +966,7 @@
     $('edTitle').textContent = e ? '改一条' : '记一条';
     $('fDel').hidden = !e;
     fDay.value = e ? e.d : defaultDay();
+    fEnd.value = e ? (e.end || '') : '';
     setCat(e ? e.c : '班级');
     fTitle.value = e ? e.t : '';
     fBody.value = e ? (e.b || '') : '';
@@ -911,6 +1008,17 @@
     if (!day) { toast('选个日期'); fDay.focus(); return; }
     if (!title) { toast('标题不能空着'); fTitle.focus(); return; }
 
+    /* 结束日留空 = 只记一天。
+       ⚠️ 上限 15 天和数据库的 chron_span 约束同一个口径，前端先拦一下省一次往返。
+          编年史按天记事，一条覆盖一两个月会让时间轴塌成「一直在上课」。 */
+    var end = fEnd.value || '';
+    if (end) {
+      if (end < day) { toast('结束日期不能早于开始日期'); fEnd.focus(); return; }
+      var span = Math.round((parseDay(end) - parseDay(day)) / 86400000) + 1;
+      if (span > 15) { toast('最多连着记 15 天，更长的拆成几条'); fEnd.focus(); return; }
+      if (span === 1) end = '';          /* 同一天就当单日，别存成「1 天的区间」 */
+    }
+
     var body = {
       p_key: ED.key,
       p_id: ED.i >= 0 ? (EV[ED.i].id || 0) : 0,
@@ -918,7 +1026,8 @@
       p_title: title,
       p_body: fBody.value,
       p_cat: getCat(),
-      p_img: fImg.value.trim()
+      p_img: fImg.value.trim(),
+      p_end: end || null
     };
     setSaving(true);
     sbFetch('rpc/chron_save', { method: 'POST', body: JSON.stringify(body) })
@@ -985,6 +1094,8 @@
     return {
       id: Number(r.id),
       d: String(r.day || '').slice(0, 10),
+      /* 空 = 只记一天。老库里没有这一列，取到 undefined 也自动变成 '' */
+      end: r.end_day ? String(r.end_day).slice(0, 10) : '',
       t: r.title || '',
       b: r.body || '',
       c: (r.cat === '活动' || r.cat === '学习') ? r.cat : '班级',
@@ -993,7 +1104,11 @@
   }
 
   function loadRows() {
-    return sbFetch(TABLE + '?select=id,day,title,body,cat,img'
+    /* ⚠️ 用 select=* 而不是点名列举。点名要 end_day 的话，还没跑升级脚本的
+       老库会整个请求 400，整页直接白掉；用 * 时那一列不存在就当单日，
+       读照常、页面照常。写多日记录才需要那一列，那时 chron_save 会报
+       「函数还没建」，提示去跑 chronicle-合并多日.sql。 */
+    return sbFetch(TABLE + '?select=*'
       + '&order=day.asc,id.asc&limit=2000');
   }
 

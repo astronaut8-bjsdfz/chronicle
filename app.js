@@ -102,6 +102,10 @@
   /* 学期第一天：周历从这里开始排，中间没有记录的空周也留着 */
   var TERM_START = parseDay(SB.termStart || '2026-09-01');
 
+  /* 编年史第一页（config.js 的 bookStart）：日历/周历再往前能翻到哪个月。
+     它的存在是为了「这个月还什么都没记，但也要能翻进去写」。 */
+  var BOOK_START = parseDay(SB.bookStart || '2026-07-01');
+
   /* ================= 2. 日期工具（全部本地时区，别用 Date 解析字符串） ================= */
 
   function pad(n) { return (n < 10 ? '0' : '') + n; }
@@ -208,7 +212,12 @@
 
     var first = EV.length ? parseDay(EV[0].d) : TODAY;
     var last = EV.length ? parseDay(EV[EV.length - 1].d) : TODAY;
-    var s = monday(first < TERM_START ? first : TERM_START);
+    /* 起点取三者里最早的一天：第一条记录、学期第一天、编年史第一页。
+       ⚠️ bookStart 不是装饰：日历的月份是照着周历算的，周历不铺到 7 月，
+          日历里就永远翻不出 7 月 —— 那条「想在暑假补记一条」的路就堵死了。 */
+    var head = first < TERM_START ? first : TERM_START;
+    if (BOOK_START < head) head = BOOK_START;
+    var s = monday(head);
     var e = monday(last > TODAY ? last : TODAY);
 
     WEEKS = [];
@@ -239,7 +248,12 @@
 
     /* 日历月份范围跟着数据走 */
     CALM = [];
-    var q0 = WEEKS.length ? WEEKS[0].start : TODAY;
+    /* ⚠️ 第一月不能直接拿「第一个周一」算：bookStart 写 7 月 1 日时，
+       它那一周的周一还在 6 月 29 日，照着周一起算就白送一个空荡荡的 6 月。
+       所以起点取「bookStart 所在月」和「第一条记录所在月」里更早的那个。 */
+    var bs = new Date(BOOK_START.getFullYear(), BOOK_START.getMonth(), 1);
+    var recFirst = EV.length ? parseDay(EV[0].d) : null;
+    var q0 = (recFirst && recFirst < bs) ? recFirst : bs;
     var q1 = WEEKS.length ? WEEKS[N - 1].start : TODAY;
     for (var q = q0.getFullYear() * 12 + q0.getMonth();
       q <= q1.getFullYear() * 12 + q1.getMonth(); q++) {
@@ -290,9 +304,20 @@
       stops.appendChild(b);
       stopEls.push(b);
     });
-    stops.style.gridTemplateColumns = 'repeat(' + N + ',1fr)';
+    /* ⚠️ 只传周数，别在这里写死 1fr —— 内联样式会压过手机断点里的 56px 定宽，
+       20 周时每列剩 19px，底部那排「W01 06.29」会挤成一串。列宽在 CSS 里分档。 */
+    stops.style.setProperty('--n', N);
     var inset = (100 / (2 * N)) + '%';
     rail.style.left = inset; rail.style.right = inset;
+  }
+
+  /* 手机上这排是横滚的、一屏只放得下 7 周，默认停在第 1 周等于没对准。
+     翻周时把它滚到当前周中间。桌面不分页（全部塞得下）时什么都不做。 */
+  function centerCur() {
+    var el = stopEls[CUR];
+    if (!el || stops.scrollWidth <= stops.clientWidth + 2) return;
+    var l = el.offsetLeft - (stops.clientWidth - el.offsetWidth) / 2;
+    stops.scrollLeft = Math.max(0, Math.min(l, stops.scrollWidth - stops.clientWidth));
   }
 
   /* ================= 7. 文案 ================= */
@@ -482,6 +507,8 @@
       $('m3wrap').style.display = 'none';
     }
 
+    /* 手机上的周轴是横滚的：每次翻周把它对到当前周，不然永远停在最左那几周 */
+    centerCur();
     firstPaint = false;
   }
 
@@ -702,7 +729,8 @@
         + (cv ? ' span' : '')
         + (key === TODAYKEY ? ' today' : '');
 
-      html += '<div class="' + cls + '"' + (has ? ' data-d="' + key + '"' : '') + '>'
+      html += '<div class="' + cls + '"'
+        + (has ? ' data-d="' + key + '"' : (inM ? ' data-day="' + key + '"' : '')) + '>'
         + '<div class="ch"><span class="dn">' + d.getDate() + '</span>';
       var dots = evs.length ? evs : (cv ? [cv.e] : []);
       if (dots.length) {
@@ -823,8 +851,14 @@
   }
 
   cellsEl.addEventListener('click', function (e) {
-    var cell = e.target.closest ? e.target.closest('.cell[data-d]') : null;
-    if (cell) openWeekOf(cell.dataset.d);
+    var cell = e.target.closest ? e.target.closest('.cell') : null;
+    if (!cell) return;
+    if (cell.dataset.d) { openWeekOf(cell.dataset.d); return; }
+    /* 空白的一天：管理员点它就等于「这天记一条」，日期直接预填。
+       访客点了不弹钥匙门 —— 那是拦路；给一句话，知道能记就行。 */
+    if (!cell.dataset.day) return;              /* 上个月/下个月那几格不管 */
+    if (!ED.on) { toast('这一天还没有记录 · 想补记要先输钥匙'); return; }
+    openEditor(-1, cell.dataset.day);
   });
   listEl.addEventListener('click', function (e) {
     var li = e.target.closest ? e.target.closest('.li[data-d]') : null;
@@ -1011,14 +1045,14 @@
   fTitle.addEventListener('input', countBox);
   fBody.addEventListener('input', countBox);
 
-  /* i = -1 新建；否则改第 i 条 */
-  function openEditor(i) {
+  /* i = -1 新建；否则改第 i 条。day 只在新建时用（日历里点空白日进来） */
+  function openEditor(i, day) {
     ED.i = (typeof i === 'number') ? i : -1;
     var e = ED.i >= 0 ? EV[ED.i] : null;
 
     $('edTitle').textContent = e ? '改一条' : '记一条';
     $('fDel').hidden = !e;
-    fDay.value = e ? e.d : defaultDay();
+    fDay.value = e ? e.d : (day || defaultDay());
     fEnd.value = e ? (e.end || '') : '';
     setCat(e ? e.c : '班级');
     fTitle.value = e ? e.t : '';
@@ -1243,6 +1277,9 @@
       void appEl.offsetWidth;
       appEl.classList.add('enter');
       setTimeout(function () { appEl.classList.remove('enter'); }, 700);
+      /* 周轴在封面/序言里是 display:none，paint 时量出来的宽度是 0，
+         所以「滚到当前周」只能等切进正文、布局有了再对一次。 */
+      setTimeout(centerCur, 60);
     }
     window.scrollTo(0, 0);
   }

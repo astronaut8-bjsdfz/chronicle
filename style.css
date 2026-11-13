@@ -290,7 +290,11 @@ body{margin:0;background:var(--night);color:var(--ink2);font-family:var(--sans);
 .rail .head{position:absolute;top:-2px;width:7px;height:7px;border-radius:50%;
   background:var(--am);box-shadow:0 0 14px rgba(240,180,95,.9);
   transform:translateX(-3px);transition:left .55s cubic-bezier(.3,.9,.3,1)}
-.stops{display:grid;position:relative;gap:0}
+/* ⚠️ 别在 JS 里直接写 repeat(N,1fr)：内联样式会压过手机断点里的 56px，
+   20 周时每列只剩 19px，底部那排「W01 06.29」会糊成一条。
+   JS 只给 --n，列宽交给这里的 CSS（手机断点里换成定宽 56px + 横滚）。 */
+.stops{display:grid;position:relative;gap:0;
+  grid-template-columns:repeat(var(--n,15),1fr)}
 .st{display:flex;flex-direction:column;align-items:center;gap:9px;border:0;background:none;
   padding:0;cursor:pointer;-webkit-tap-highlight-color:transparent}
 .st .dot{width:7px;height:7px;border-radius:50%;background:#1d2a34;
@@ -455,7 +459,10 @@ body{margin:0;background:var(--night);color:var(--ink2);font-family:var(--sans);
   .col .ev .c{margin-bottom:0;flex:0 0 auto}
   .col .ev .t{flex:1 1 auto;min-width:0}
   .evlist{overflow:visible;margin-right:0;padding-right:0}
-  .stops{overflow-x:auto;grid-auto-flow:column;grid-auto-columns:56px;
+  /* ⚠️ 手机上必须显式写 56px 的列宽：JS 只给 --n（周数），
+     原来 JS 内联的是 repeat(N,1fr)，把下面这条压得死死的 ——
+     20 周时每列只剩 19px，「06.29」直接糊成一串。 */
+  .stops{overflow-x:auto;grid-template-columns:repeat(var(--n,15),56px);
     justify-content:start;padding-bottom:4px;scrollbar-width:none}
   .stops::-webkit-scrollbar{display:none}
   .rail{display:none}
@@ -534,6 +541,11 @@ body[data-view="week"] .spine{animation:viewin .5s cubic-bezier(.3,.9,.3,1)}
 .cell.out.we{background:#060b10}
 .cell.has{cursor:pointer}
 .cell.has:hover{background:#0c1720}
+/* 空白的一天也能点：点它就是「这天记一条」（没钥匙的访客只得到一句话）。
+   hover 只加一层极淡的底色 + 一圈内描边 —— 一屏四十多个格子，
+   整格发光会亮成一片，反而看不出哪格是被指着的。 */
+.cell[data-day]{cursor:pointer}
+.cell[data-day]:hover{background:#0b141c;box-shadow:inset 0 0 0 1px rgba(90,216,255,.16)}
 /* 今天只靠「顶部一道线 + 实心琥珀圆盘」两处标记。原来还加了一圈 inset 描边，
    整格像被「选中」，和圆盘抢戏，去掉了。 */
 .cell.today{background:#0d161e}
